@@ -8,12 +8,17 @@ class User(db.Model):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(120), nullable=False)
     role = db.Column(db.String(20), nullable=False)  # 'admin', 'professional', 'customer'
     date_created = db.Column(db.DateTime, default=db.func.current_timestamp())
+    active = db.Column(db.Boolean, default=True)
+    is_blocked = db.Column(db.Boolean, default=False)
+    fs_uniquifier = db.Column(db.String(255), nullable=False, unique=True)
 
     # Polymorphic relationship , this maps the user table to the admin, service professional and customer tables
     # this maps the python classes to the database tables
+
     __mapper_args__ = {
         'polymorphic_on': role,
         'polymorphic_identity': 'user'
