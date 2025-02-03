@@ -1,10 +1,11 @@
-from flask_sqlalchemy import SQLAlchemy
-
-# Initialize SQLAlchemy
-db = SQLAlchemy()
+# from flask_sqlalchemy import SQLAlchemy
+from flask_security import UserMixin,RoleMixin
+# # Initialize SQLAlchemy
+# db = SQLAlchemy()
+from application.database import db
 
 # Define the User table (base class for Admin, ServiceProfessional, and Customer)
-class User(db.Model):
+class User(db.Model,UserMixin):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -23,6 +24,13 @@ class User(db.Model):
         'polymorphic_on': role,
         'polymorphic_identity': 'user'
     }
+
+class Role(db.Model, RoleMixin):
+    __tablename__ = 'role'
+    id = db.Column(db.Integer, primary_key = True)
+    name = db.Column(db.String, unique = True, nullable  = False)
+    description = db.Column(db.String, nullable = False)
+
 
 # Admin table (inherits from User)
 class Admin(User):
