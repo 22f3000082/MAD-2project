@@ -12,7 +12,8 @@ class User(db.Model):
     role = db.Column(db.String(20), nullable=False)  # 'admin', 'professional', 'customer'
     date_created = db.Column(db.DateTime, default=db.func.current_timestamp())
 
-    # Polymorphic relationship
+    # Polymorphic relationship , this maps the user table to the admin, service professional and customer tables
+    # this maps the python classes to the database tables
     __mapper_args__ = {
         'polymorphic_on': role,
         'polymorphic_identity': 'user'
