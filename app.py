@@ -6,30 +6,48 @@ from celery import Celery   #batch jobs
 from application.models import db, User, Admin, ServiceProfessional, Customer, Service, ServiceRequest, Reviews,Role
 from application.database import db
 from application.config import LocalDevelopmentConfig
-from flask_security import Security, SQLAlchemyUserDatastore , Security
+from application.auth import init_security
+from flask_security import auth_required, roles_required, current_user
 
 
 # Initialize Flask app
 def create_app():
     app = Flask(__name__)
     app.config.from_object(LocalDevelopmentConfig)
+    
+    # Add these required Flask-Security configurations
+    app.config['SECURITY_PASSWORD_SALT'] = 'your-salt-here'  # Change this!
+    app.config['SECRET_KEY'] = 'your-secret-key-here'  # Change this!
+    app.config['SECURITY_TOKEN_AUTHENTICATION_HEADER'] = 'Authentication-Token'
+    app.config['SECURITY_TOKEN_MAX_AGE'] = 86400  # 24 hours
+    app.config['SECURITY_TRACKABLE'] = True
+    
     db.init_app(app)
-    datastore=SQLAlchemyUserDatastore(db,User,Role)
-    app.security=Security(app,datastore)
+    init_security(app)
 
-
-# # Configure SQLite database
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///household_services.db'
-# app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
-
-# Initialize SQLAlchemy with the app
-# db.init_app(app)
-
-# Create tables programmatically
     with app.app_context():
+        db.create_all()
+        
+    # Example protected routes
+    @app.route('/admin/dashboard')
+    @auth_required()
+    @roles_required('admin')
+    def admin_dashboard():
+        return jsonify({"message": "Welcome to Admin Dashboard"})
 
-         db.create_all()
-         return app
+    @app.route('/professional/dashboard')
+    @auth_required()
+    @roles_required('professional')
+    def professional_dashboard():
+        return jsonify({"message": "Welcome to Professional Dashboard"})
+
+    @app.route('/customer/dashboard')
+    @auth_required()
+    @roles_required('customer')
+    def customer_dashboard():
+        return jsonify({"message": "Welcome to Customer Dashboard"})
+
+    return app
 
 # Routes and other application logic can be added here
 app=create_app()
