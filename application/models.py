@@ -5,44 +5,43 @@ from flask_security import UserMixin,RoleMixin
 from application.database import db
 
 # Define the User table (base class for Admin, ServiceProfessional, and Customer)
-class User(db.Model,UserMixin):
+class User(db.Model, UserMixin):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(255), nullable=False)  # Increased length for hashed password
-    role = db.Column(db.String(20), nullable=False)  # 'admin', 'professional', 'customer'
+    password = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), nullable=False)
     date_created = db.Column(db.DateTime, default=db.func.current_timestamp())
     active = db.Column(db.Boolean, default=True)
     is_blocked = db.Column(db.Boolean, default=False)
-    fs_uniquifier = db.Column(db.String(255), nullable=False, unique=True) #this is for flask security in making the user unique
-    # Add these fields required by Flask-Security
-    last_login_at = db.Column(db.DateTime)
-    current_login_at = db.Column(db.DateTime)
-    last_login_ip = db.Column(db.String(100))
-    current_login_ip = db.Column(db.String(100))
-    login_count = db.Column(db.Integer)
+    fs_uniquifier = db.Column(db.String(255), unique=True, nullable=False, default='')
+    
+    # Flask-Security tracking fields
+    last_login_at = db.Column(db.DateTime, nullable=True)
+    current_login_at = db.Column(db.DateTime, nullable=True)
+    last_login_ip = db.Column(db.String(100), nullable=True)
+    current_login_ip = db.Column(db.String(100), nullable=True)
+    login_count = db.Column(db.Integer, default=0)
     
     roles = db.relationship('Role', secondary='user_roles', backref=db.backref('users', lazy='dynamic'))
 
-    # Polymorphic relationship , this maps the user table to the admin, service professional and customer tables
-    # this maps the python classes to the database tables
-
     __mapper_args__ = {
-        'polymorphic_on': role,
-        'polymorphic_identity': 'user'
+        'polymorphic_identity': 'user',
+        'polymorphic_on': role
     }
 
 class Role(db.Model, RoleMixin):
     __tablename__ = 'role'
-    id = db.Column(db.Integer, primary_key = True)
-    name = db.Column(db.String, unique = True, nullable  = False)
-    description = db.Column(db.String, nullable = False)
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), unique=True, nullable=False)
+    description = db.Column(db.String(255), nullable=False)
 
 class UserRoles(db.Model):
-    id = db.Column(db.Integer, primary_key = True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    role_id = db.Column(db.Integer, db.ForeignKey('role.id'))
+    __tablename__ = 'user_roles'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'))
+    role_id = db.Column(db.Integer, db.ForeignKey('role.id', ondelete='CASCADE'))
 
 # Admin table (inherits from User)
 class Admin(User):

@@ -7,7 +7,8 @@ from application.models import db, User, Admin, ServiceProfessional, Customer, S
 from application.database import db
 from application.config import LocalDevelopmentConfig
 from application.auth import init_security
-from flask_security import auth_required, roles_required, current_user
+from flask_security import auth_required, roles_required, current_user, hash_password
+from application.controllers.admin_controller import admin
 
 
 # Initialize Flask app
@@ -15,20 +16,28 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(LocalDevelopmentConfig)
     
-    # Add these required Flask-Security configurations
-    app.config['SECURITY_PASSWORD_SALT'] = 'your-salt-here'  # Change this!
-    app.config['SECRET_KEY'] = 'your-secret-key-here'  # Change this!
+    # Security configurations
+    app.config['SECURITY_PASSWORD_SALT'] = 'your-salt-here'
+    app.config['SECRET_KEY'] = 'your-secret-key-here'
     app.config['SECURITY_TOKEN_AUTHENTICATION_HEADER'] = 'Authentication-Token'
-    app.config['SECURITY_TOKEN_MAX_AGE'] = 86400  # 24 hours
+    app.config['SECURITY_TOKEN_MAX_AGE'] = 86400
     app.config['SECURITY_TRACKABLE'] = True
+    app.config['SECURITY_REGISTERABLE'] = True
+    app.config['SECURITY_SEND_REGISTER_EMAIL'] = False
+    app.config['SECURITY_USERNAME_ENABLE'] = True
     
-    db.init_app(app)
-    init_security(app)
-
+    db.init_app(app) # Initialize database with flask application
+    
     with app.app_context():
+        # Drop all tables and recreate them
+        # db.drop_all()
         db.create_all()
-        
-    # Example protected routes
+        init_security(app) 
+
+    # Register blueprints
+    app.register_blueprint(admin)
+
+    # protected routes
     @app.route('/admin/dashboard')
     @auth_required()
     @roles_required('admin')
@@ -50,9 +59,11 @@ def create_app():
     return app
 
 # Routes and other application logic can be added here
-app=create_app()
+
+app = create_app()    
+
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True,port=8080)
 
 
 
