@@ -6,6 +6,7 @@ from flask_security import roles_required, current_user
 from flask import abort
 import uuid
 
+
 # Initialize Flask-Security
 user_datastore = SQLAlchemyUserDatastore(db, User, Role)
 
@@ -39,6 +40,27 @@ def init_security(app):
             admin_user = user_datastore.find_user(email=admin_email)
             admin_role = user_datastore.find_role('admin')
             user_datastore.add_role_to_user(admin_user, admin_role)
+            db.session.commit()
+
+         # Create default customer
+        customer_email = 'customer@household.com'
+        if not user_datastore.find_user(email=customer_email):
+            # Create customer user
+            customer = User(  # Change Admin to your User model if it's different
+                username='customer',
+                email=customer_email,
+                password=hash_password('0900'),
+                fs_uniquifier=str(uuid.uuid4()),
+                active=True,
+                role='customer'
+            )
+            db.session.add(customer)
+            db.session.commit()
+            
+            # Add customer role to user
+            customer_user = user_datastore.find_user(email=customer_email)
+            customer_role = user_datastore.find_role('customer')
+            user_datastore.add_role_to_user(customer_user, customer_role)
             db.session.commit()
 
 # Custom decorators for role-based access

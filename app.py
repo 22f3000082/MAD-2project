@@ -8,7 +8,7 @@ from application.database import db
 from application.config import LocalDevelopmentConfig
 from application.auth import init_security
 from flask_security import auth_required, roles_required, current_user, hash_password
-from application.controllers.admin_controller import admin
+from application.routes import admin
 
 
 # Initialize Flask app
@@ -17,14 +17,14 @@ def create_app():
     app.config.from_object(LocalDevelopmentConfig)
     
     # Security configurations
-    app.config['SECURITY_PASSWORD_SALT'] = 'your-salt-here'
-    app.config['SECRET_KEY'] = 'your-secret-key-here'
-    app.config['SECURITY_TOKEN_AUTHENTICATION_HEADER'] = 'Authentication-Token'
-    app.config['SECURITY_TOKEN_MAX_AGE'] = 86400
-    app.config['SECURITY_TRACKABLE'] = True
-    app.config['SECURITY_REGISTERABLE'] = True
-    app.config['SECURITY_SEND_REGISTER_EMAIL'] = False
-    app.config['SECURITY_USERNAME_ENABLE'] = True
+    # app.config['SECURITY_PASSWORD_SALT'] = 'your-salt-here'
+    # app.config['SECRET_KEY'] = 'your-secret-key-here'
+    # app.config['SECURITY_TOKEN_AUTHENTICATION_HEADER'] = 'Authentication-Token'
+    # app.config['SECURITY_TOKEN_MAX_AGE'] = 86400
+    # app.config['SECURITY_TRACKABLE'] = True
+    # app.config['SECURITY_REGISTERABLE'] = True
+    # app.config['SECURITY_SEND_REGISTER_EMAIL'] = False
+    # app.config['SECURITY_USERNAME_ENABLE'] = True
     
     db.init_app(app) # Initialize database with flask application
     
