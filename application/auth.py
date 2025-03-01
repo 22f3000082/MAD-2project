@@ -49,7 +49,7 @@ def init_security(app):
             customer = User(  # Change Admin to your User model if it's different
                 username='customer',
                 email=customer_email,
-                password=hash_password('0900'),
+                password=hash_password('customer123'),
                 fs_uniquifier=str(uuid.uuid4()),
                 active=True,
                 role='customer'
@@ -77,7 +77,6 @@ def admin_required(f):
 def professional_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        
         if not current_user.has_role('professional'):
             abort(403)
         return f(*args, **kwargs)
