@@ -8,7 +8,8 @@ from application.database import db
 from application.config import LocalDevelopmentConfig
 from application.auth import init_security
 from flask_security import auth_required, roles_required, current_user, hash_password
-from application.routes import admin
+from application.routes import admin, auth  
+from application.resources import api, initialize_routes
 
 
 # Initialize Flask app
@@ -29,14 +30,17 @@ def create_app():
     db.init_app(app) # Initialize database with flask application
     
     with app.app_context():
-        # Drop all tables and recreate them
-        # db.drop_all()
         db.create_all()
         init_security(app) 
 
     # Register blueprints
     app.register_blueprint(admin)
-
+    app.register_blueprint(auth)  
+    
+    # Initialize Flask-RESTful API
+    api.init_app(app)
+    initialize_routes(api)
+    
     # protected routes
     @app.route('/admin/dashboard')
     @auth_required()

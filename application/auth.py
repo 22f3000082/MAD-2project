@@ -67,14 +67,17 @@ def init_security(app):
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            abort(401)  # Unauthorized
         if not current_user.has_role('admin'):
-            abort(403)
+            abort(403)  # Forbidden
         return f(*args, **kwargs)
     return decorated_function
 
 def professional_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        
         if not current_user.has_role('professional'):
             abort(403)
         return f(*args, **kwargs)
@@ -83,6 +86,7 @@ def professional_required(f):
 def customer_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+    
         if not current_user.has_role('customer'):
             abort(403)
         return f(*args, **kwargs)
