@@ -1,9 +1,8 @@
-from flask import current_app, Blueprint, request, jsonify
-from flask_security import Security, SQLAlchemyUserDatastore, hash_password
+from flask import current_app, Blueprint, request, jsonify, abort
+from flask_security import Security, SQLAlchemyUserDatastore, hash_password,roles_required, current_user
 from backend.application.models import db, User, Role, Admin, Customer, ServiceProfessional
 from functools import wraps
-from flask_security import roles_required, current_user
-from flask import abort
+
 import uuid
 
 # Create Blueprint

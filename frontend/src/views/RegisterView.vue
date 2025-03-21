@@ -131,6 +131,7 @@ export default {
         try {
           const response = await axios.get('http://localhost:8080/api/service-types', {
             headers: {
+              'Authentication-Token': `Bearer ${localStorage.getItem('token')}`,
               'Accept': 'application/json',
               'Content-Type': 'application/json'
             },

@@ -1,0 +1,1 @@
+"use strict";(self["webpackChunkhousehold_services"]=self["webpackChunkhousehold_services"]||[]).push([[210],{210:(e,s,u)=>{u.r(s),u.d(s,{default:()=>h});var l=function(){var e=this;e._self._c;return e._m(0)},r=[function(){var e=this,s=e._self._c;return s("div",[s("h1",[e._v("Service Request")])])}],n=u(656),t={},c=(0,n.A)(t,l,r,!1,null,null,null);const h=c.exports}}]);

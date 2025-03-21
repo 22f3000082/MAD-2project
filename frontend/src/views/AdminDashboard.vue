@@ -88,6 +88,7 @@
                   <option value="">All Users</option>
                   <option value="professional">Professionals</option>
                   <option value="customer">Customers</option>
+                  <option value="pending">Pending Approval</option>
                 </select>
               </div>
               <div class="d-flex gap-2">
@@ -97,21 +98,29 @@
               </div>
             </div>
 
+            <div v-if="pendingApprovals.length > 0" class="alert alert-warning mb-4">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              <strong>{{ pendingApprovals.length }} professional{{ pendingApprovals.length > 1 ? 's' : '' }}</strong> pending approval
+            </div>
+
             <div class="table-responsive">
               <table class="table table-hover">
                 <thead>
                   <tr>
                     <th>ID</th>
                     <th>Name</th>
+                    <th>Email</th>
                     <th>Role</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="user in filteredUsers" :key="user.id">
+                  <tr v-for="user in filteredUsers" :key="user.id" 
+                      :class="{'table-warning': user.role === 'professional' && !user.is_approved}">
                     <td>{{ user.id }}</td>
                     <td>{{ user.name }}</td>
+                    <td>{{ user.email }}</td>
                     <td>
                       <span class="badge" 
                             :class="user.role === 'professional' ? 'bg-info' : 'bg-secondary'">
@@ -119,23 +128,25 @@
                       </span>
                     </td>
                     <td>
-                      <span class="badge" 
-                            :class="user.status === 'active' ? 'bg-success' : 'bg-danger'">
-                        {{ user.status }}
+                      <span v-if="user.role === 'professional' && !user.is_approved" 
+                            class="badge bg-warning">Pending Approval</span>
+                      <span v-else class="badge" 
+                            :class="user.is_blocked ? 'bg-danger' : 'bg-success'">
+                        {{ user.is_blocked ? 'Blocked' : 'Active' }}
                       </span>
                     </td>
                     <td>
                       <div class="btn-group">
-                        <button v-if="user.role === 'professional' && !user.approved"
+                        <button v-if="user.role === 'professional' && !user.is_approved"
                                 class="btn btn-sm btn-success" 
                                 @click="approveUser(user.id)">
                           <i class="fas fa-check"></i> Approve
                         </button>
                         <button class="btn btn-sm" 
-                                :class="user.status === 'active' ? 'btn-danger' : 'btn-success'"
+                                :class="user.is_blocked ? 'btn-success' : 'btn-danger'"
                                 @click="toggleUserBlock(user)">
-                          <i class="fas" :class="user.status === 'active' ? 'fa-ban' : 'fa-unlock'"></i>
-                          {{ user.status === 'active' ? 'Block' : 'Unblock' }}
+                          <i class="fas" :class="user.is_blocked ? 'fa-unlock' : 'fa-ban'"></i>
+                          {{ user.is_blocked ? 'Unblock' : 'Block' }}
                         </button>
                         <button class="btn btn-sm btn-info" @click="viewUserDetails(user)">
                           <i class="fas fa-eye"></i> View
@@ -379,13 +390,23 @@ export default {
     ]
 
     // Computed properties
+    const pendingApprovals = computed(() => 
+      users.value.filter(user => user.role === 'professional' && !user.is_approved)
+    );
+
     const filteredUsers = computed(() => {
       return users.value.filter(user => {
-        const matchesSearch = user.name.toLowerCase().includes(userSearch.value.toLowerCase())
-        const matchesType = !userTypeFilter.value || user.role === userTypeFilter.value
-        return matchesSearch && matchesType
-      })
-    })
+        const matchesSearch = (user.name || '').toLowerCase().includes(userSearch.value.toLowerCase()) ||
+                             (user.email || '').toLowerCase().includes(userSearch.value.toLowerCase());
+        
+        if (userTypeFilter.value === 'pending') {
+          return matchesSearch && user.role === 'professional' && !user.is_approved;
+        } else {
+          const matchesType = !userTypeFilter.value || user.role === userTypeFilter.value;
+          return matchesSearch && matchesType;
+        }
+      });
+    });
 
     const filteredServices = computed(() => {
       return services.value.filter(service =>
@@ -411,9 +432,9 @@ export default {
     const updateStats = () => {
       stats.value = {
         totalUsers: users.value.length,
-        activeServices: services.value.filter(s => s.status === 'active').length,
-        pendingApprovals: users.value.filter(u => u.role === 'professional' && !u.approved).length,
-        blockedUsers: users.value.filter(u => u.status === 'blocked').length
+        activeServices: services.value.filter(s => s.is_active !== false).length,
+        pendingApprovals: pendingApprovals.value.length,
+        blockedUsers: users.value.filter(u => u.is_blocked).length
       }
     }
 
@@ -461,21 +482,39 @@ export default {
 
     const approveUser = async (userId) => {
       try {
-        await adminAPI.approveUser(userId)
-        await loadDashboardData()
+        if (confirm('Are you sure you want to approve this professional?')) {
+          await adminAPI.approveUser(userId);
+          alert('Professional approved successfully');
+          await loadDashboardData();
+        }
       } catch (error) {
-        console.error('Error approving user:', error)
+        console.error('Error approving user:', error);
+        alert('Failed to approve professional: ' + (error.message || 'Unknown error'));
       }
-    }
+    };
 
     const toggleUserBlock = async (user) => {
       try {
-        await adminAPI.blockUser(user.id)
-        await loadDashboardData()
+        if (user.is_blocked) {
+          // Unblock user
+          if (confirm('Are you sure you want to unblock this user?')) {
+            await adminAPI.unblockUser(user.id);
+            alert('User unblocked successfully');
+          }
+        } else {
+          // Block user with reason
+          const reason = prompt('Please enter a reason for blocking this user:', 'Violation of terms of service');
+          if (reason) {
+            await adminAPI.blockUser(user.id, reason);
+            alert('User blocked successfully');
+          }
+        }
+        await loadDashboardData();
       } catch (error) {
-        console.error('Error toggling user block status:', error)
+        console.error('Error toggling user block status:', error);
+        alert('Operation failed: ' + error.message);
       }
-    }
+    };
 
     const viewUserDetails = (user) => {
       selectedUser.value = user
@@ -550,6 +589,7 @@ export default {
       selectedUser,
       filteredUsers,
       filteredServices,
+      pendingApprovals,
       showNewServiceModal,
       editService,
       saveService,
@@ -617,5 +657,13 @@ export default {
 .modal-body {
   max-height: 80vh;
   overflow-y: auto;
+}
+
+.table-warning {
+  background-color: rgba(255, 193, 7, 0.1);
+}
+
+.alert-warning {
+  border-left: 4px solid #ffc107;
 }
 </style>

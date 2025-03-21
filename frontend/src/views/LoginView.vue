@@ -85,7 +85,7 @@
 
           <!-- Role Information Cards -->
           <div class="row mt-4 g-3">
-            <div class="col-md-4">
+            <!-- <div class="col-md-4">
               <div class="card h-100 border-0 shadow-sm">
                 <div class="card-body text-center">
                   <i class="fas fa-user-shield fa-2x text-primary mb-2"></i>
@@ -93,7 +93,7 @@
                   <p class="card-text small">Manage services and users</p>
                 </div>
               </div>
-            </div>
+            </div> -->
             <div class="col-md-4">
               <div class="card h-100 border-0 shadow-sm">
                 <div class="card-body text-center">

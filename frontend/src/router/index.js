@@ -48,6 +48,7 @@ const routes = [
   }
 ]
 
+
 const router = new VueRouter({
   mode: 'history',
   base: process.env.BASE_URL,
@@ -57,44 +58,78 @@ const router = new VueRouter({
 // Navigation guard
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
-  const user = JSON.parse(localStorage.getItem('user') || '{}')
-  if (!token && to.meta.requiresAuth) {
-    next("/login");  // Redirect to login if no token
-  } else {
-    next();  // Allow access if token exists
-  }
+  const userStr = localStorage.getItem('user')
+  const user = userStr ? JSON.parse(userStr) : {}
   
-  // Routes that require authentication
-  if (to.matched.some(record => record.meta.requiresAuth)) {
-    if (!token) {
-      next('/login')
-      return
-    }
-
-    // Check role-specific requirements
-    if (to.meta.requiresAdmin && user.role !== 'admin') {
-      next('/')
-      return
-    }
-    if (to.meta.requiresCustomer && user.role !== 'customer') {
-      next('/')
-      return
-    }
-    if (to.meta.requiresProfessional && user.role !== 'professional') {
-      next('/')
-      return
-    }
-  }
-
-  // // Routes for guests only (login, register)
-  // if (to.matched.some(record => record.meta.guest)) {
-  //   if (token) {
-  //     next(`/${user.role}/dashboard`)
+  console.log('Navigation:', {
+    to: to.path,
+    hasToken: !!token,
+    userRole: user.role,
+    requiresAuth: to.matched.some(r => r.meta.requiresAuth),
+    requiresAdmin: to.matched.some(r => r.meta.requiresAdmin)
+  })
+  
+  // // Handle routes requiring authentication
+  // if (to.matched.some(record => record.meta.requiresAuth)) {
+  //   if (!token) {
+  //     if (to.path !== '/login') { // Only redirect if not already on /login
+  //       console.log('Auth required but no token found - redirecting to login')
+  //       next('/login')
+  //     } else {
+  //       console.log('Already on login page, no need to redirect')
+  //       next()
+  //     }
   //     return
   //   }
-  // }
+    
+    // Handle auth required routes
+    if (to.matched.some(record => record.meta.requiresAuth)) {
+      if (!token) {
+        console.log('Auth required but no token found - redirecting to login');
+        return next('/login')
+      }
+    
+    console.log('Checking role-specific requirements')
+    console.log('User role:', user.role)
+    
+    // Check role-specific requirements
+    if (to.meta.requiresAdmin && user.role !== 'admin') {
+      console.log('Admin route access denied for non-admin user')
+      next('/')
+      return
+    }
+    
+    if (to.meta.requiresCustomer && user.role !== 'customer') {
+      console.log('Customer route access denied for non-customer user')
+      next('/')
+      return
+    }
+    
+    if (to.meta.requiresProfessional && user.role !== 'professional') {
+      console.log('Professional route access denied for non-professional user')
+      next('/')
+      return
+    }
+  }
 
-  next()
-})
-
+  console.log('Navigation allowed to', to.path);
+   next(); // Allow navigation
+  // Guest routes (login/register) should redirect already logged-in users
+  if (to.matched.some(record => record.meta.guest) && token) {
+    // if (token && to.path === '/login') {
+      console.log('User already logged in, avoiding unnecessary login navigation')
+    if (user.role === 'customer') {
+      next('/customer/dashboard')
+    } else if (user.role === 'professional') {
+      next('/professional/dashboard')
+    } else if (user.role === 'admin') {
+      next('/admin/dashboard')
+    } else {
+      next('/')
+    }
+    return}
+  });
+ 
+    // next()
+  
 export default router

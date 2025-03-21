@@ -5,26 +5,39 @@ import router from '@/router'
 const api = axios.create({
   baseURL: 'http://localhost:8080',
   headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
+    'Content-Type': 'application/json'
+    // 'Accept': 'application/json'
   },
   withCredentials: true // Important for CORS with credentials
 })
 
 // Request interceptor
-api.interceptors.request.use(
-  config => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`
-    }
-    return config
-  },
-  error => {
-    console.error('Request error:', error)
-    return Promise.reject(error)
+// api.interceptors.request.use(
+//   config => {
+//     const token = localStorage.getItem('token')
+//     if (token) {
+//       // Format token properly - token may already have 'Bearer ' prefix
+//       const authToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`
+//       config.headers['Authorization'] = authToken
+//       console.log(`Request to ${config.url} with token: ${authToken.substring(0, 20)}...`)
+//     } else {
+//       console.warn(`No token found for request to: ${config.url}`)
+//     }
+//     return config
+//   },
+//   error => {
+//     console.error('Request error:', error)
+//     return Promise.reject(error)
+//   }
+// )
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`;
   }
-)
+  return config;
+}, error => Promise.reject(error));
+
 
 // Response interceptor
 api.interceptors.response.use(
@@ -85,13 +98,38 @@ export const authService = {
       console.log('Attempting login:', credentials)
       const response = await api.post('/auth/login', credentials)
       console.log('Login response:', response.data)
+      
       if (response.data.token) {
-        localStorage.setItem('token', response.data.token)
+        // Store auth data - ensure token is saved correctly
+        const token = response.data.token
+        localStorage.setItem('token', token)
         localStorage.setItem('user', JSON.stringify(response.data.user))
-        // Redirect based on user role
-        const user = response.data.user
-        router.push(`/${user.role}/dashboard`)
+        
+        // Verify token was saved correctly
+        const savedToken = localStorage.getItem('token')
+        console.log(`Token saved successfully: ${savedToken ? 'Yes' : 'No'}`)
+        console.log(`Saved token (first 15 chars): ${savedToken ? savedToken.substring(0, 15) : 'None'}`)
+        
+        // Debug: Check the localStorage item immediately
+        console.log('localStorage.token:', localStorage.getItem('token'))
+        console.log('localStorage.user:', localStorage.getItem('user'))
+
+        // Get target route path
+        const targetPath = `/${response.data.user.role}/dashboard`
+        
+        // Short delay to ensure token is saved before redirection
+        setTimeout(() => {
+          // Only navigate if not already on target page
+          // if (router.currentRoute.path !== targetPath) {
+            router.push(targetPath).catch(err => {
+              if (err.name !== 'NavigationDuplicated') {
+                console.error('Navigation error:', err)
+              }
+            })
+          }
+        , 500)
       }
+      
       return response.data
     } catch (error) {
       console.error('Login error:', error.response?.data || error.message)
@@ -104,13 +142,29 @@ export const authService = {
       await api.post('/auth/logout')
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      router.push('/login')
+
+      // Only navigate if not already on login page
+      if (router.currentRoute.path !== '/login') {
+      router.push('/login').catch(err => {
+          if (err.name !== 'NavigationDuplicated') {
+            console.error('Navigation error:', err)
+          }
+        })
+      }
     } catch (error) {
       console.error('Logout error:', error.response?.data || error.message)
       // Still clear local storage and redirect even if API call fails
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      router.push('/login')
+
+      // Only navigate if not already on login page
+      if (router.currentRoute.path !== '/login') {
+      router.push('/login').catch(err => {
+          if (err.name !== 'NavigationDuplicated') {
+            console.error('Navigation error:', err)
+          }
+        })
+      }
     }
   },
 
@@ -216,8 +270,10 @@ export const customerAPI = {
 export const professionalAPI = {
   async getAssignments(status = null) {
     try {
+      console.log('Fetching professional assignments', status ? `with status: ${status}` : '')
       const params = status ? { status } : {}
       const response = await api.get('/api/professional/assignments', { params })
+      console.log('Received assignments:', response.data.length)
       return response.data
     } catch (error) {
       console.error('Error fetching assignments:', error)
@@ -227,7 +283,9 @@ export const professionalAPI = {
 
   async updateStatus(requestId, status) {
     try {
+      console.log(`Updating request ${requestId} status to ${status}`)
       const response = await api.put(`/api/professional/requests/${requestId}`, { status })
+      console.log('Status update response:', response.data)
       return response.data
     } catch (error) {
       console.error('Error updating status:', error)
@@ -237,7 +295,9 @@ export const professionalAPI = {
 
   async getProfile() {
     try {
+      console.log('Fetching professional profile')
       const response = await api.get('/api/professional/profile')
+      console.log('Retrieved profile data')
       return response.data
     } catch (error) {
       console.error('Error fetching profile:', error)
@@ -247,7 +307,9 @@ export const professionalAPI = {
 
   async updateProfile(data) {
     try {
+      console.log('Updating professional profile with data:', data)
       const response = await api.put('/api/professional/profile', data)
+      console.log('Profile update response:', response.data)
       return response.data
     } catch (error) {
       console.error('Error updating profile:', error)
@@ -259,56 +321,150 @@ export const professionalAPI = {
 export const adminAPI = {
   async getUsers(role = null) {
     try {
+      // Make sure token is present in localStorage
+      const token = localStorage.getItem('token')
+      if (!token) {
+        throw new Error('Token not found in localStorage');
+      }
+    
+      // console.log(`Fetching users with token: ${token ? token.substring(0, 15) + '...' : 'No token!'}`)
+      
       const params = role ? { role } : {}
-      const response = await api.get('/api/admin/users', { params })
+      // Add a small delay to ensure token is available
+      // await new Promise(resolve => setTimeout(resolve, 300))
+      
+      const response = await api.get('/api/admin/users'
+        , { params,
+        headers: {
+          'Authentication-Token': `Bearer${token}`  // Add token explicitly to request
+          // Authorization: `Bearer ${localStorage.getItem('token')}`,
+        }
+    })
+      console.log('Users response:', response.data)
       return response.data
     } catch (error) {
-      console.error('Error fetching users:', error)
+      console.error('Error fetching users:', error.response?.data || error.message)
+      if (error.response && error.response.status === 401) {
+        // Handle unauthorized error specifically
+        console.log('Unauthorized. Please check your token.');
+      } else {
       throw error
     }
+  }
   },
+
 
   async approveUser(userId) {
     try {
-      const response = await api.post(`/api/admin/users/${userId}/approve`)
-      return response.data
+      console.log(`Approving professional with ID: ${userId}`);
+      const response = await api.post(`/api/admin/professionals/${userId}/approve`);
+      console.log('Professional approved:', response.data);
+      return response.data;
     } catch (error) {
-      console.error('Error approving user:', error)
-      throw error
+      console.error('Error approving user:', error);
+      throw error;
     }
   },
 
-  async blockUser(userId) {
+  async blockUser(userId, reason = 'Violation of terms of service') {
     try {
-      const response = await api.post(`/api/admin/users/${userId}/block`)
-      return response.data
+      console.log(`Blocking user with ID: ${userId}, reason: ${reason}`);
+      const response = await api.post(`/api/admin/users/${userId}/block`, { reason });
+      console.log('User blocked:', response.data);
+      return response.data;
     } catch (error) {
-      console.error('Error blocking user:', error)
-      throw error
+      console.error('Error blocking user:', error);
+      throw error;
+    }
+  },
+
+  async unblockUser(userId) {
+    try {
+      console.log(`Unblocking user with ID: ${userId}`);
+      const response = await api.post(`/api/admin/users/${userId}/unblock`);
+      console.log('User unblocked:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error unblocking user:', error);
+      throw error;
     }
   },
 
   async getServices() {
     try {
-      const response = await api.get('/api/admin/services')
+      // Make sure token is present in localStorage
+      const token = localStorage.getItem('token')
+      if (!token) {
+        throw new Error('Token not found in localStorage');
+      }
+      console.log(`Fetching services with token: ${token ? token.substring(0, 15) + '...' : 'No token!'}`)
+      
+      // Add a small delay to ensure token is available
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      const response = await api.get('/api/admin/services', {
+        headers: {
+          'Authentication-Token': `Bearer ${token}`  // Add token explicitly to request
+        }
+      })
+      console.log('Services response:', response.data)
       return response.data
     } catch (error) {
-      console.error('Error fetching services:', error)
+      console.error('Error fetching services:', error.response?.data || error.message)
       throw error
     }
   },
 
+  // async getService(serviceId) {
+  //   try {
+  //     const response = await api.get(`/api/admin/services/${serviceId}`)
+  //     return response.data
+  //   } catch (error) {
+  //     console.error('Error fetching service:', error)
+  //     throw error
+  //   }
+  // },
+
   async createService(serviceData) {
     try {
-      console.log('Creating service with data:', serviceData);
-      const response = await api.post('/api/admin/services', serviceData);
-      console.log('Service created:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Error creating service:', error.response?.data || error);
-      throw error;
+        // Convert field names to snake_case for backend compatibility
+        const formattedData = {
+            name: serviceData.name,
+            description: serviceData.description,
+            base_price: Number(serviceData.basePrice), // Ensure number type
+            time_required: Number(serviceData.timeRequired), // Ensure number type
+            category: serviceData.category
+        };
+
+        console.log('Creating service with formatted data:', formattedData);
+        
+        const response = await api.post('/api/admin/services', formattedData);
+        console.log('Service created:', response.data);
+
+            
+        // // Display a success flash message
+        // const flashContainer = document.getElementById('flash-messages');
+        // const flashMessage = document.createElement('div');
+        // flashMessage.classList.add('flash-message');
+        // flashMessage.textContent = 'Service created successfully!';
+        // flashContainer.appendChild(flashMessage);
+    
+        // // Auto-hide the message after a few seconds
+        // setTimeout(() => {
+        //   flashMessage.remove();
+        // }, 3000)
+        return response.data;
+        } catch (error) {
+        console.error('Error creating service:', error.response?.data || error);
+        
+        // Handle specific validation errors
+        if (error.response?.status === 400) {
+            throw new Error(`Validation error: ${error.response.data.message || 'Invalid data'}`);
+        }
+        
+        throw error;
     }
-  },
+},
 
   async updateService(serviceId, serviceData) {
     try {
