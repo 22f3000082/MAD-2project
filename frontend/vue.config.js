@@ -25,7 +25,8 @@ module.exports = defineConfig({
       '^/api': {
         target: 'http://localhost:8080',
         ws: true,
-        changeOrigin: true
+        changeOrigin: true,
+        logLevel: 'debug' // Add to see detailed proxy logs
       },
       '^/auth': {
         target: 'http://localhost:8080',
@@ -34,4 +35,4 @@ module.exports = defineConfig({
       }
     }
   }
-}) 
+})

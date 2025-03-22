@@ -454,12 +454,15 @@ export default {
         users.value = usersData;
 
         try {
-          // Now try to load services
+          // Now try to load services with detailed logging
+          console.log('Attempting to load services...');
           const servicesData = await adminAPI.getServices();
+          console.log('Raw services data:', servicesData);
           console.log(`Loaded ${servicesData.length} services successfully`);
           services.value = servicesData;
         } catch (servicesError) {
           console.error('Error loading services:', servicesError);
+          error.value = `Failed to load services: ${servicesError.message}`;
           // Don't fail completely, just show users without services
           services.value = [];
         }

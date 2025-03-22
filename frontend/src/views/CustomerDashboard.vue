@@ -32,84 +32,21 @@
 
       <!-- Browse Services Section -->
       <div v-if="activeSection === 'browse'">
-        <!-- Search Services -->
-        <div class="card shadow-sm mb-4">
-          <div class="card-body">
-            <h5 class="card-title mb-3">Search Services</h5>
-            <div class="row g-3">
-              <div class="col-md-4">
-                <div class="input-group">
-                  <span class="input-group-text">
-                    <i class="fas fa-search"></i>
-                  </span>
-                  <input
-                    type="text"
-                    class="form-control"
-                    v-model="searchQuery.name"
-                    placeholder="Service name..."
-                    @input="searchServices"
-                  >
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="input-group">
-                  <span class="input-group-text">
-                    <i class="fas fa-map-marker-alt"></i>
-                  </span>
-                  <input
-                    type="text"
-                    class="form-control"
-                    v-model="searchQuery.pinCode"
-                    placeholder="PIN code..."
-                    @input="searchServices"
-                  >
-                </div>
-              </div>
-              <div class="col-md-4">
-                <select class="form-select" v-model="searchQuery.category" @change="searchServices">
-                  <option value="">All Categories</option>
-                  <option v-for="category in categories" :key="category" :value="category">
-                    {{ category }}
-                  </option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- Enhanced Service Search using the new component -->
+        <ServiceSearchPanel 
+          :initialParams="searchQuery" 
+          @search="handleSearch"
+        />
 
-        <!-- Services List -->
-        <div v-if="loading" class="text-center py-5">
-          <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
-          </div>
-          <p class="mt-2">Loading available services...</p>
-        </div>
-        
-        <div v-else-if="filteredServices.length === 0" class="text-center py-5">
-          <i class="fas fa-search fa-3x text-muted mb-3"></i>
-          <h5>No services found</h5>
-          <p class="text-muted">Try adjusting your search criteria</p>
-        </div>
-        
-        <div v-else class="row g-4">
-          <div v-for="service in filteredServices" :key="service.id" class="col-md-4">
-            <div class="card h-100 service-card">
-              <div class="card-body">
-                <h5 class="card-title">{{ service.name }}</h5>
-                <p class="card-text text-truncate">{{ service.description }}</p>
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                  <span class="badge bg-primary">₹{{ service.base_price }}</span>
-                  <span class="text-muted"><i class="far fa-clock me-1"></i>{{ service.time_required }} min</span>
-                </div>
-                <div class="d-grid">
-                  <button class="btn btn-outline-primary" @click="selectService(service)">
-                    <i class="fas fa-info-circle me-1"></i> View Details
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- Service List using the new component -->
+        <ServiceList
+          :services="filteredServices"
+          :loading="loading"
+          :hasMore="hasMoreServices"
+          @view-details="selectService"
+          @request-service="directRequestService"
+          @load-more="loadMoreServices"
+        />
       </div>
 
       <!-- My Requests Section -->
@@ -315,161 +252,33 @@
       </div>
     </div>
 
-    <!-- Review Modal -->
+    <!-- Enhanced Review Modal -->
     <div class="modal fade" :class="{ show: showReviewModal }" v-if="showReviewModal">
       <div class="modal-dialog">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Add Review</h5>
-            <button type="button" class="btn-close" @click="showReviewModal = false"></button>
-          </div>
-          <div class="modal-body">
-            <form @submit.prevent="submitReview">
-              <div class="mb-3">
-                <label for="rating" class="form-label">Rating</label>
-                <div class="star-rating" id="rating">
-                  <i
-                    v-for="star in 5"
-                    :key="star"
-                    class="fas fa-star"
-                    :class="{ active: star <= review.rating }"
-                    @click="review.rating = star"
-                  ></i>
-                </div>
-              </div>
-
-              <div class="mb-3">
-                <label for="reviewRemarks" class="form-label">Comments</label>
-                <textarea
-                  id="reviewRemarks"
-                  name="reviewRemarks"
-                  class="form-control"
-                  v-model="review.remarks"
-                  rows="3"
-                  required
-                  placeholder="Share your experience..."
-                ></textarea>
-              </div>
-              
-              <div class="text-end">
-                <button type="button" class="btn btn-secondary me-2" @click="showReviewModal = false">
-                  Cancel
-                </button>
-                <button type="submit" class="btn btn-primary" :disabled="isLoading">
-                  <span v-if="isLoading" class="spinner-border spinner-border-sm me-2"></span>
-                  Submit Review
-                </button>
-              </div>
-            </form>
-          </div>
+          <ServiceReviewForm
+            :requestId="selectedRequest?.id"
+            :serviceName="selectedRequest?.service?.name"
+            :serviceDate="selectedRequest?.completed_at"
+            :professionalName="selectedRequest?.professional?.professional_name"
+            @close="showReviewModal = false"
+            @submitted="handleReviewSubmitted"
+          />
         </div>
       </div>
     </div>
 
-    <!-- Request Details Modal -->
+    <!-- Enhanced Request Details Modal -->
     <div class="modal fade" :class="{ show: showRequestDetailsModal }" v-if="showRequestDetailsModal">
-      <div class="modal-dialog">
+      <div class="modal-dialog modal-lg">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Request Details</h5>
-            <button type="button" class="btn-close" @click="showRequestDetailsModal = false"></button>
-          </div>
-          <div class="modal-body" v-if="selectedRequest">
-            <div class="request-details">
-              <h4>{{ selectedRequest.service?.name }}</h4>
-              
-              <div class="mb-3">
-                <span :class="getStatusBadgeClass(selectedRequest.status)">
-                  {{ selectedRequest.status }}
-                </span>
-              </div>
-              
-              <div class="mb-3">
-                <h6>Request Timeline</h6>
-                <div class="timeline">
-                  <div class="timeline-item">
-                    <div class="timeline-marker bg-primary"></div>
-                    <div class="timeline-content">
-                      <div class="timeline-heading">
-                        <h6 class="mb-0">Request Created</h6>
-                        <small>{{ formatDate(selectedRequest.created_at) }}</small>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div v-if="selectedRequest.accepted_at" class="timeline-item">
-                    <div class="timeline-marker bg-info"></div>
-                    <div class="timeline-content">
-                      <div class="timeline-heading">
-                        <h6 class="mb-0">Request Accepted</h6>
-                        <small>{{ formatDate(selectedRequest.accepted_at) }}</small>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div v-if="selectedRequest.completed_at" class="timeline-item">
-                    <div class="timeline-marker bg-success"></div>
-                    <div class="timeline-content">
-                      <div class="timeline-heading">
-                        <h6 class="mb-0">Service Completed</h6>
-                        <small>{{ formatDate(selectedRequest.completed_at) }}</small>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div v-if="selectedRequest.closed_at" class="timeline-item">
-                    <div class="timeline-marker bg-secondary"></div>
-                    <div class="timeline-content">
-                      <div class="timeline-heading">
-                        <h6 class="mb-0">Request Closed</h6>
-                        <small>{{ formatDate(selectedRequest.closed_at) }}</small>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="mb-3" v-if="selectedRequest.professional">
-                <h6>Professional Details</h6>
-                <p class="mb-1"><strong>Name:</strong> {{ selectedRequest.professional.professional_name }}</p>
-                <p class="mb-0"><strong>Contact:</strong> {{ selectedRequest.professional.phone || 'N/A' }}</p>
-              </div>
-              
-              <div class="mb-3">
-                <h6>Special Instructions</h6>
-                <p class="mb-0">{{ selectedRequest.special_instructions || 'No special instructions provided.' }}</p>
-              </div>
-              
-              <div class="mb-0" v-if="selectedRequest.review">
-                <h6>Your Review</h6>
-                <div class="stars mb-2">
-                  <i v-for="n in 5" :key="n"
-                     class="fas fa-star"
-                     :class="n <= selectedRequest.review.rating ? 'text-warning' : 'text-muted'"></i>
-                </div>
-                <p class="mb-0">{{ selectedRequest.review.remarks }}</p>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" @click="showRequestDetailsModal = false">Close</button>
-            
-            <button 
-              v-if="selectedRequest && selectedRequest.status === 'completed' && !selectedRequest.review"
-              type="button" 
-              class="btn btn-primary" 
-              @click="addReview(selectedRequest)">
-              <i class="fas fa-star me-1"></i> Add Review
-            </button>
-            
-            <button 
-              v-if="selectedRequest && (selectedRequest.status === 'pending' || selectedRequest.status === 'assigned')"
-              type="button" 
-              class="btn btn-danger" 
-              @click="closeRequest(selectedRequest, true)">
-              <i class="fas fa-times me-1"></i> Cancel Request
-            </button>
-          </div>
+          <ServiceRequestDetail
+            :request="selectedRequest"
+            @close="showRequestDetailsModal = false"
+            @updated="handleRequestUpdated"
+            @review="addReview"
+            @cancel="closeRequest"
+          />
         </div>
       </div>
     </div>
@@ -478,9 +287,19 @@
 
 <script>
 import { customerAPI, serviceAPI } from '@/services/api'
+import ServiceSearchPanel from '@/components/ServiceSearchPanel.vue'
+import ServiceList from '@/components/ServiceList.vue'
+import ServiceReviewForm from '@/components/ServiceReviewForm.vue'
+import ServiceRequestDetail from '@/components/ServiceRequestDetail.vue'
 
 export default {
   name: 'CustomerDashboard',
+  components: {
+    ServiceSearchPanel,
+    ServiceList,
+    ServiceReviewForm,
+    ServiceRequestDetail
+  },
   data() {
     return {
       userName: JSON.parse(localStorage.getItem('user'))?.name || 'Customer',
@@ -511,7 +330,10 @@ export default {
       },
       selectedRequest: null,
       selectedService: null,
-      error: null
+      error: null,
+      hasMoreServices: false,
+      page: 1,
+      limit: 9
     }
   },
   computed: {
@@ -553,21 +375,33 @@ export default {
     async fetchServices() {
       try {
         this.loading = true;
+        console.log('CustomerDashboard: Fetching services...');
         const response = await serviceAPI.getServices();
+        console.log(`CustomerDashboard: Received ${response.length} services`);
         this.services = response;
         this.loading = false;
       } catch (error) {
-        console.error('Error fetching services:', error);
+        console.error('CustomerDashboard: Error fetching services:', error);
         this.error = 'Failed to load services. Please try again.';
         this.loading = false;
+        
+        // Retry after a delay in case of network issues
+        setTimeout(() => {
+          if (this.services.length === 0) {
+            console.log('Retrying service fetch...');
+            this.fetchServices();
+          }
+        }, 3000);
       }
     },
     async fetchServiceTypes() {
       try {
+        console.log('CustomerDashboard: Fetching service types...');
         const response = await serviceAPI.getServiceTypes();
+        console.log(`CustomerDashboard: Received ${response.length} service types`);
         this.categories = response;
       } catch (error) {
-        console.error('Error fetching service types:', error);
+        console.error('CustomerDashboard: Error fetching service types:', error);
         this.error = 'Failed to load service categories. Please try again.';
       }
     },
@@ -692,6 +526,59 @@ export default {
         cancelled: 'badge bg-danger'
       };
       return classes[status] || 'badge bg-secondary';
+    },
+    // Enhanced search method using the new search panel
+    handleSearch(params) {
+      this.searchQuery = { ...params };
+      this.page = 1;
+      this.fetchServices();
+    },
+    
+    // Method to directly request a service from the service list
+    directRequestService(service) {
+      this.selectedService = service;
+      this.showNewRequestModal = true;
+      
+      // Pre-populate the request form with the selected service
+      this.newRequest.service_id = service.id;
+    },
+    
+    // Load more services for pagination
+    loadMoreServices() {
+      this.page += 1;
+      this.fetchMoreServices();
+    },
+    
+    // Fetch additional services for pagination
+    // async fetchMoreServices() {
+    //   try {
+    //     const response = await serviceAPI.getServices({
+    //       ...this.searchQuery,
+    //       page: this.page,
+    //       limit: this.limit
+    //     });
+        
+    //     if (response.length > 0) {
+    //       this.services = [...this.services, ...response];
+    //       this.hasMoreServices = response.length === this.limit;
+    //     } else {
+    //       this.hasMoreServices = false;
+    //     }
+    //   } catch (error) {
+    //     console.error('Error fetching more services:', error);
+    //   }
+    // },
+    
+    // Handle review submission
+    handleReviewSubmitted() {
+      this.showReviewModal = false;
+      this.fetchRequests();
+      alert('Thank you for your review!');
+    },
+    
+    // Handle request updated
+    handleRequestUpdated() {
+      this.fetchRequests();
     }
   },
   async created() {
@@ -703,6 +590,132 @@ export default {
   }
 }
 </script>
+<!--  -->
+Add styling as needed
+<!-- <style scoped> -->
+/* .customer-dashboard { */
+  /* background-color: #f8f9fa; */
+  /* min-height: 100vh; */
+/* } */
+/*  */
+/* .service-card { */
+  /* transition: transform 0.2s, box-shadow 0.2s; */
+/* } */
+/*  */
+/* .service-card:hover { */
+        /* this.showNewRequestModal = false; */
+        /* this.newRequest = { service_id: '', pin_code: '', special_instructions: '' }; */
+        /* this.activeSection = 'requests'; // Switch to requests tab */
+        /* await this.fetchRequests(); */
+        /* alert('Service request created successfully!'); */
+      /* } catch (error) { */
+        /* console.error('Error creating request:', error); */
+        /* alert('Failed to create service request: ' + (error.message || 'Unknown error')); */
+      /* } finally { */
+        /* this.isLoading = false; */
+      /* } */
+    /* }, */
+    /* async closeRequest(request, fromModal = false) { */
+      /* if (confirm('Are you sure you want to cancel this request?')) { */
+        /* try { */
+          /* this.isLoading = true; */
+          /* await customerAPI.closeRequest(request.id); */
+          /* await this.fetchRequests(); */
+          /* if (fromModal) { */
+            /* this.showRequestDetailsModal = false; */
+          /* } */
+          /* alert('Request cancelled successfully.'); */
+        /* } catch (error) { */
+          /* console.error('Error closing request:', error); */
+          /* alert('Failed to cancel request: ' + (error.message || 'Unknown error')); */
+        /* } finally { */
+          /* this.isLoading = false; */
+        /* } */
+      /* } */
+    /* }, */
+    /* editRequest(request) { */
+      /* // Implement edit functionality (e.g., populate form with current values) */
+      /* this.newRequest = { */
+        /* service_id: request.service_id, */
+        /* pin_code: request.pin_code, */
+        /* special_instructions: request.special_instructions || '' */
+      /* }; */
+      /* this.showNewRequestModal = true; */
+    /* }, */
+    /* addReview(request) { */
+      /* this.selectedRequest = request; */
+      /* this.review = { rating: 0, remarks: '' }; */
+      /* this.showReviewModal = true; */
+      /* if (this.showRequestDetailsModal) { */
+        /* this.showRequestDetailsModal = false; */
+      /* } */
+    /* }, */
+    /* async submitReview() { */
+      /* try { */
+        /* this.isLoading = true; */
+        /* await customerAPI.addReview(this.selectedRequest.id, this.review); */
+        /* this.showReviewModal = false; */
+        /* this.review = { rating: 0, remarks: '' }; */
+        /* await this.fetchRequests(); */
+        /* alert('Review submitted successfully.'); */
+      /* } catch (error) { */
+        /* console.error('Error submitting review:', error); */
+        /* alert('Failed to submit review: ' + (error.message || 'Unknown error')); */
+      /* } finally { */
+        /* this.isLoading = false; */
+      /* } */
+    /* }, */
+    /*  */
+    /* selectService(service) { */
+      /* this.selectedService = service; */
+      /* this.showServiceModal = true; */
+    /* }, */
+    /*  */
+    /* requestSelectedService() { */
+      /* this.newRequest.service_id = this.selectedService.id; */
+      /* this.showServiceModal = false; */
+      /* this.showNewRequestModal = true; */
+    /* }, */
+    /*  */
+    /* viewRequestDetails(request) { */
+      /* this.selectedRequest = request; */
+      /* this.showRequestDetailsModal = true; */
+    /* }, */
+    /*  */
+    /* formatDate(dateString) { */
+      /* if (!dateString) return 'N/A'; */
+      /* const date = new Date(dateString); */
+      /* return date.toLocaleString('en-US', { */
+        /* year: 'numeric', */
+        /* month: 'short', */
+        /* day: 'numeric', */
+        /* hour: '2-digit', */
+        /* minute: '2-digit' */
+      /* }); */
+    /* }, */
+    /*  */
+    /* getStatusBadgeClass(status) { */
+      /* const classes = { */
+        /* pending: 'badge bg-warning', */
+        /* assigned: 'badge bg-info', */
+        /* in_progress: 'badge bg-primary', */
+        /* completed: 'badge bg-success', */
+        /* closed: 'badge bg-secondary', */
+        /* cancelled: 'badge bg-danger' */
+      /* }; */
+      /* return classes[status] || 'badge bg-secondary'; */
+    /* } */
+  /* }, */
+  /* async created() { */
+    /* await Promise.all([ */
+      /* this.fetchServices(), */
+      /* this.fetchServiceTypes(), */
+      /* this.fetchRequests() */
+    /* ]); */
+  /* } */
+/* } */
+/* 
+<!-- </script>  -->
 
 <!-- Add styling as needed -->
 <style scoped>

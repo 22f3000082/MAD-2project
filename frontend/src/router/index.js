@@ -52,6 +52,12 @@ const routes = [
     component: () => import('@/views/ServiceDetails.vue'),
     props: true,
     meta: { requiresAuth: true, requiresCustomer: true }
+  },
+  {
+    path: '/professional/:id',
+    name: 'ProfessionalProfile',
+    component: () => import('@/views/ProfessionalProfile.vue'),
+    props: true
   }
 ]
 
@@ -96,8 +102,9 @@ router.beforeEach((to, from, next) => {
     if (user.role === 'professional') return next('/professional/dashboard')
     return next('/')
   }
-  
   next()
+ 
 })
+
 
 export default router

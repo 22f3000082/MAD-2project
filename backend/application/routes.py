@@ -1,6 +1,6 @@
 from wsgiref import headers
 from flask import Blueprint, jsonify, request,render_template, url_for, make_response
-from backend.application.models import db, User, ServiceProfessional, Service, Customer
+from backend.application.models import db, User, ServiceProfessional, Service, Customer, Admin
 from backend.application.auth import admin_required, user_datastore, init_security
 from flask_security import auth_required, login_required, hash_password, roles_required, login_user, current_user
 from flask_security.utils import verify_password
@@ -205,28 +205,17 @@ def unblock_user(user_id):
 @admin_required
 def admin_services():
     try:
-        # if request.method == 'OPTIONS':
-        #     response = make_response()
-        #     response.headers.add('Access-Control-Allow-Origin', 'http://localhost:8082')
-        #     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authentication-Token')
-        #     response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-        #     response.headers.add('Access-Control-Allow-Credentials', 'true')
-        #     return response
-
-        # token = request.headers.get('Authentication-Token')
-        # if not token:
-        #     return jsonify({'error': 'No authentication token provided'}), 401
-
         if request.method == 'GET':
             services = Service.query.all()
             result = []
             for service in services:
+                # Format service data to match frontend expectations
                 result.append({
                     'id': service.id,
                     'name': service.name,
                     'description': service.description,
-                    'base_price': service.base_price,
-                    'time_required': service.time_required,
+                    'basePrice': service.base_price,  # Changed to camelCase
+                    'timeRequired': service.time_required,  # Changed to camelCase
                     'category': service.category,
                     'is_active': service.is_active
                 })
@@ -241,36 +230,62 @@ def admin_services():
                 if field not in data:
                     return jsonify({'error': f'Missing required field: {field}'}), 400
 
-            new_service = Service(
-                name=data['name'],
-                description=data['description'],
-                base_price=data['base_price'],
-                time_required=data['time_required'],
-                category=data.get('category', 'General'),
-                is_active=True
-            )
-            db.session.add(new_service)
-            db.session.commit()
+            # Enhanced debugging
+            print(f"Creating service with data: {data}")
+            print(f"Current user: ID={current_user.id}, Role={current_user.role}")
             
-            response = jsonify({
-                'id': new_service.id,
-                'name': new_service.name,
-                'description': new_service.description,
-                'base_price': new_service.base_price,
-                'time_required': new_service.time_required,
-                'category': new_service.category,
-                'is_active': new_service.is_active
-            })
+            # Make sure we have an admin record
+            admin_record = Admin.query.get(current_user.id)
+            if not admin_record:
+                print(f"Creating new admin record for user {current_user.id}")
+                # Create an Admin record linked to the current user
+                admin_record = Admin(id=current_user.id)
+                db.session.add(admin_record)
+                db.session.flush()  # Get ID without committing
+                print(f"Created admin record with ID: {admin_record.id}")
+            else:
+                print(f"Found existing admin record: {admin_record.id}")
 
-        # Add CORS headers to response
-        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:8080')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authentication-Token')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
+            try:
+                new_service = Service(
+                    name=data['name'],
+                    description=data['description'],
+                    base_price=float(data['base_price']),
+                    time_required=int(data['time_required']),
+                    category=data.get('category', 'General'),
+                    is_active=True,
+                    created_by_admin_id=admin_record.id  # Use admin_record.id instead
+                )
+                
+                db.session.add(new_service)
+                db.session.commit()
+                print(f"Service successfully created with ID: {new_service.id}")
+                
+                response = jsonify({
+                    'id': new_service.id,
+                    'name': new_service.name,
+                    'description': new_service.description,
+                    'base_price': new_service.base_price,
+                    'time_required': new_service.time_required,
+                    'category': new_service.category,
+                    'is_active': new_service.is_active
+                })
+            except Exception as inner_error:
+                db.session.rollback()
+                print(f"Error creating service: {str(inner_error)}")
+                # Get detailed error information
+                import traceback
+                traceback.print_exc()
+                return jsonify({'error': f'Failed to create service: {str(inner_error)}'}), 500
+
+        # Ensure#  consistent CORS headers
+        
         return response
 
     except Exception as e:
         print(f"Error in admin_services: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': 'Internal server error'}), 500
 
 @admin.route('/services/<int:service_id>', methods=['GET', 'PUT', 'DELETE', 'OPTIONS'])
@@ -569,12 +584,12 @@ def health_check():
         'message': 'Server is running'
     })
 
-@api.route('/service-types', methods=['GET', 'OPTIONS'])
+@api.route('/service-types', methods=['GET'])
 def get_service_types():
-    if request.method == 'OPTIONS':
+    if request.method == 'GET':
         response = make_response()
         response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authentication-Token,Authorization')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authentication-Token')
         response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
         return response
         
@@ -760,6 +775,106 @@ def get_professional_profile():
     except Exception as e:
         print(f"Error fetching professional profile: {str(e)}")
         return jsonify({'error': 'Failed to fetch profile'}), 500
+
+@api.route('/professional/reviews', methods=['GET'])
+@auth_required('token')
+def get_professional_reviews():
+    try:
+        # Ensure the current user is a professional
+        if current_user.role != 'professional':
+            return jsonify({'error': 'Unauthorized access'}), 403
+            
+        # Get all reviews for this professional
+        review_data = []
+        service_requests = ServiceRequest.query.filter_by(professional_id=current_user.id).all()
+        
+        for req in service_requests:
+            review = Reviews.query.filter_by(service_request_id=req.id).first()
+            if review:
+                # Get customer name
+                customer = Customer.query.get(review.customer_id)
+                # Get service name
+                service = Service.query.get(req.service_id)
+                
+                review_data.append({
+                    'id': review.id,
+                    'rating': review.rating,
+                    'remarks': review.remarks,
+                    'date_created': review.date_created.isoformat(),
+                    'customer_name': customer.customer_name if customer else 'Unknown Customer',
+                    'service_name': service.name if service else 'Unknown Service'
+                })
+        
+        return jsonify(review_data)
+    except Exception as e:
+        print(f"Error fetching professional reviews: {str(e)}")
+        return jsonify({'error': 'Failed to fetch reviews'}), 500
+
+@api.route('/professional/availability', methods=['PUT'])
+@auth_required('token')
+def update_professional_availability():
+    try:
+        # Ensure the current user is a professional
+        if current_user.role != 'professional':
+            return jsonify({'error': 'Unauthorized access'}), 403
+            
+        data = request.get_json()
+        
+        if 'is_available' not in data:
+            return jsonify({'error': 'Missing is_available field'}), 400
+            
+        professional = ServiceProfessional.query.get(current_user.id)
+        professional.is_available = data['is_available']
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'Availability updated to {"available" if data["is_available"] else "unavailable"}',
+            'is_available': professional.is_available
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating professional availability: {str(e)}")
+        return jsonify({'error': 'Failed to update availability'}), 500
+
+@api.route('/professional/requests/<int:request_id>/exit-location', methods=['POST'])
+@auth_required('token')
+def confirm_location_exit(request_id):
+    try:
+        # Ensure the current user is a professional
+        if current_user.role != 'professional':
+            return jsonify({'error': 'Unauthorized access'}), 403
+            
+        # Get the service request
+        service_request = ServiceRequest.query.get_or_404(request_id)
+        
+        # Ensure the request is assigned to this professional
+        if service_request.professional_id != current_user.id:
+            return jsonify({'error': 'This request is not assigned to you'}), 403
+            
+        # Update the request to mark location exit
+        service_request.has_exited_location = True
+        service_request.exited_at = db.func.current_timestamp()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Location exit confirmed',
+            'id': service_request.id
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error confirming location exit: {str(e)}")
+        return jsonify({'error': 'Failed to confirm location exit'}), 500
+    
+#cust is the shortform for customer
+
+cust = Blueprint('cust', __name__, url_prefix='/api/cust')
+
+@cust.route('/services', methods=['GET','POST'])
+@auth_required('token')
+
+
 
 # Register blueprints
 def init_app(app):

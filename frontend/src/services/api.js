@@ -144,25 +144,25 @@ export const authService = {
 }
 
 export const serviceAPI = {
-  async getServices(params = {}) {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No authentication token found');
-      }
+  // async getServices(params = {}) {
+  //   try {
+  //     const token = localStorage.getItem('token');
+  //     if (!token) {
+  //       throw new Error('No authentication token found');
+  //     }
 
-      const response = await api.get('/api/admin/services', { 
-        params,
-        headers: {
-          'Authentication-Token': token
-        }
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching services:', error)
-      throw error;
-    }
-  },
+  //     const response = await api.get('/api/service-types', { 
+  //       params,
+  //       headers: {
+  //         'Authentication-Token': token
+  //       }
+  //     });
+  //     return response.data;
+  //   } catch (error) {
+  //     console.error('Error fetching services:', error)
+  //     throw error;
+  //   }
+  // },
 
   async getServiceById(id) {
     try {
@@ -192,19 +192,42 @@ export const serviceAPI = {
       console.error('Error fetching service types:', error);
       throw error;
     }
+  },
+  
+  // Enhanced getServices method with pagination and filtering
+  async getServices(params = {}) {
+    try {
+      const queryParams = { ...params };
+      
+      // Format price range if provided
+      if (queryParams.priceMin) queryParams.price_min = queryParams.priceMin;
+      if (queryParams.priceMax) queryParams.price_max = queryParams.priceMax;
+      if (queryParams.sortBy) queryParams.sort_by = queryParams.sortBy;
+      
+      // Clean up params
+      delete queryParams.priceMin;
+      delete queryParams.priceMax;
+      delete queryParams.sortBy;
+      
+      const response = await api.get('/api/admin/services', { params: queryParams });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      throw error;
+    }
   }
 }
 
 export const customerAPI = {
-  async getRequests() {
-    try {
-      const response = await api.get('/api/customer/requests')
-      return response.data
-    } catch (error) {
-      console.error('Error fetching requests:', error)
-      throw error
-    }
-  },
+  // async getRequests() {
+  //   try {
+  //     const response = await api.get('/api/customer/requests')
+  //     return response.data
+  //   } catch (error) {
+  //     console.error('Error fetching requests:', error)
+  //     throw error
+  //   }
+  // },
 
   async createRequest(data) {
     try {
@@ -216,15 +239,15 @@ export const customerAPI = {
     }
   },
 
-  async updateRequest(requestId, data) {
-    try {
-      const response = await api.put(`/api/customer/requests/${requestId}`, data)
-      return response.data
-    } catch (error) {
-      console.error('Error updating request:', error)
-      throw error
-    }
-  },
+  // async updateRequest(requestId, data) {
+  //   try {
+  //     const response = await api.put(`/api/customer/requests/${requestId}`, data)
+  //     return response.data
+  //   } catch (error) {
+  //     console.error('Error updating request:', error)
+  //     throw error
+  //   }
+  // },
 
   async closeRequest(requestId) {
     try {
@@ -236,15 +259,29 @@ export const customerAPI = {
     }
   },
 
+  
+  // Enhanced updateRequest method with additional parameters
+  async updateRequest(requestId, data) {
+    try {
+      const response = await api.put(`/api/customer/requests/${requestId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating request:', error);
+      throw error;
+    }
+  },
+  
+  // Enhanced addReview method with additional parameters
   async addReview(requestId, reviewData) {
     try {
-      const response = await api.post(`/api/customer/requests/${requestId}/review`, reviewData)
-      return response.data
+      const response = await api.post(`/api/customer/requests/${requestId}/review`, reviewData);
+      return response.data;
     } catch (error) {
-      console.error('Error adding review:', error)
-      throw error
+      console.error('Error adding review:', error);
+      throw error;
     }
   }
+  
 }
 
 export const professionalAPI = {
@@ -293,6 +330,42 @@ export const professionalAPI = {
       return response.data
     } catch (error) {
       console.error('Error updating profile:', error)
+      throw error
+    }
+  },
+  
+  async getReviews() {
+    try {
+      console.log('Fetching professional reviews')
+      const response = await api.get('/api/professional/reviews')
+      console.log('Retrieved reviews:', response.data.length)
+      return response.data
+    } catch (error) {
+      console.error('Error fetching reviews:', error)
+      throw error
+    }
+  },
+  
+  async updateAvailability(isAvailable) {
+    try {
+      console.log(`Updating availability to: ${isAvailable}`)
+      const response = await api.put('/api/professional/availability', { is_available: isAvailable })
+      console.log('Availability update response:', response.data)
+      return response.data
+    } catch (error) {
+      console.error('Error updating availability:', error)
+      throw error
+    }
+  },
+  
+  async confirmLocationExit(requestId) {
+    try {
+      console.log(`Confirming exit for request: ${requestId}`)
+      const response = await api.post(`/api/professional/requests/${requestId}/exit-location`)
+      console.log('Location exit confirmation response:', response.data)
+      return response.data
+    } catch (error) {
+      console.error('Error confirming location exit:', error)
       throw error
     }
   }
@@ -372,17 +445,23 @@ export const adminAPI = {
       }
 
       const response = await api.get('/api/admin/services');
+      console.log('Services response:', response.data); // Add debugging
       
-      // Transform services to expected format
-      return response.data.map(service => ({
-        id: service.id,
-        name: service.name,
-        description: service.description || '',
-        basePrice: service.base_price,
-        timeRequired: service.time_required,
-        category: service.category || 'General',
-        status: service.is_active !== false ? 'active' : 'inactive'
-      }));
+      // If backend already sends camelCase fields, return directly
+      if (response.data && Array.isArray(response.data)) {
+        // Make sure each service has the expected format
+        return response.data.map(service => ({
+          id: service.id,
+          name: service.name,
+          description: service.description || '',
+          basePrice: service.basePrice || service.base_price,
+          timeRequired: service.timeRequired || service.time_required,
+          category: service.category || 'General',
+          status: service.is_active !== false ? 'active' : 'inactive'
+        }));
+      }
+      
+      return [];
     } catch (error) {
       console.error('Error fetching services:', error.response?.data || error.message);
       throw error;

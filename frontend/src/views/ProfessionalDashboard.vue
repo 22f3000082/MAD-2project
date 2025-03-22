@@ -44,7 +44,7 @@
                   <i v-for="i in 5" :key="i" class="fas fa-star" 
                      :class="i <= Math.round(profile.average_rating) ? 'text-warning' : 'text-muted'"></i>
                 </div>
-                <span>{{ profile.average_rating }} / 5 ({{ profile.total_reviews }} reviews)</span>
+                <span>{{ profile.average_rating.toFixed(1) }} / 5 ({{ profile.total_reviews }} reviews)</span>
               </div>
               <p class="mb-1"><strong>Service:</strong> {{ profile.service_type }}</p>
               <p class="mb-1"><strong>Experience:</strong> {{ profile.experience }} years</p>
@@ -53,7 +53,30 @@
                   {{ profile.is_approved ? 'Approved' : 'Pending Approval' }}
                 </span>
               </p>
+              <div class="mt-3">
+                <button class="btn btn-outline-primary btn-sm" @click="showProfileModal = true">
+                  <i class="fas fa-user-edit me-1"></i> View Full Profile
+                </button>
+              </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Job Availability Toggle -->
+      <div class="card mb-4">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <h5 class="mb-0">Job Availability</h5>
+            <p class="text-muted mb-0">Toggle your availability to receive new service requests</p>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="availabilitySwitch" v-model="isAvailable" @change="updateAvailability">
+            <label class="form-check-label" for="availabilitySwitch">
+              <span class="badge" :class="isAvailable ? 'bg-success' : 'bg-secondary'">
+                {{ isAvailable ? 'Available' : 'Unavailable' }}
+              </span>
+            </label>
           </div>
         </div>
       </div>
@@ -68,6 +91,7 @@
             href="#"
           >
             <i class="fas fa-clock me-1"></i> New Requests
+            <span class="badge bg-danger ms-1" v-if="pendingRequests.length">{{ pendingRequests.length }}</span>
           </a>
         </li>
         <li class="nav-item">
@@ -90,6 +114,16 @@
             <i class="fas fa-check-circle me-1"></i> Completed
           </a>
         </li>
+        <li class="nav-item">
+          <a 
+            class="nav-link" 
+            :class="{ active: activeTab === 'reviews' }"
+            @click.prevent="activeTab = 'reviews'"
+            href="#"
+          >
+            <i class="fas fa-star me-1"></i> My Reviews
+          </a>
+        </li>
       </ul>
 
       <!-- Loading State -->
@@ -101,14 +135,14 @@
       </div>
       
       <!-- Empty State -->
-      <div v-else-if="filteredRequests.length === 0" class="text-center py-5">
+      <div v-else-if="filteredRequests.length === 0 && activeTab !== 'reviews'" class="text-center py-5">
         <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
         <h5>No service requests found</h5>
         <p class="text-muted">{{ getEmptyStateMessage() }}</p>
       </div>
       
       <!-- Service Requests List -->
-      <div v-else class="row g-4">
+      <div v-else-if="activeTab !== 'reviews'" class="row g-4">
         <div v-for="request in filteredRequests" :key="request.id" class="col-md-6">
           <div class="card h-100">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -173,6 +207,46 @@
           </div>
         </div>
       </div>
+
+      <!-- Reviews Tab Content -->
+      <div v-if="activeTab === 'reviews'" class="reviews-tab">
+        <div v-if="reviews.length === 0" class="text-center py-5">
+          <i class="fas fa-star fa-3x text-muted mb-3"></i>
+          <h5>No Reviews Yet</h5>
+          <p class="text-muted">Complete service requests to receive customer reviews</p>
+        </div>
+
+        <div v-else class="card">
+          <div class="card-header bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">Customer Reviews</h5>
+              <div class="rating-summary">
+                <span class="badge bg-primary rounded-pill">
+                  <i class="fas fa-star me-1"></i> {{ profile.average_rating.toFixed(1) }}/5
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="list-group list-group-flush">
+              <div v-for="review in reviews" :key="review.id" class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <h6 class="mb-0">{{ review.customer_name }}</h6>
+                    <small class="text-muted">{{ formatDate(review.date_created) }}</small>
+                  </div>
+                  <div class="rating">
+                    <i v-for="i in 5" :key="i" class="fas fa-star" 
+                       :class="i <= review.rating ? 'text-warning' : 'text-muted'"></i>
+                  </div>
+                </div>
+                <p class="mb-0">{{ review.remarks }}</p>
+                <small class="text-muted">Service: {{ review.service_name }}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Request Details Modal -->
@@ -225,6 +299,15 @@
               <h6>Special Instructions</h6>
               <p class="mb-0">{{ selectedRequest.special_instructions || 'No special instructions provided.' }}</p>
             </div>
+
+            <div v-if="selectedRequest.status === 'in_progress'" class="mt-3">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="exitedLocation" v-model="selectedRequest.exited_location">
+                <label class="form-check-label" for="exitedLocation">
+                  I have exited the customer location
+                </label>
+              </div>
+            </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" @click="showDetailsModal = false">Close</button>
@@ -241,9 +324,97 @@
             
             <button v-if="selectedRequest && selectedRequest.status === 'in_progress'" 
                     @click="completeRequest(selectedRequest.id, true)" 
-                    class="btn btn-primary">
+                    class="btn btn-primary"
+                    :disabled="!selectedRequest.exited_location">
               <i class="fas fa-check-circle me-1"></i> Mark as Completed
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div class="modal fade" :class="{ show: showProfileModal }" v-if="showProfileModal">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Professional Profile</h5>
+            <button type="button" class="btn-close" @click="showProfileModal = false"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row">
+              <div class="col-md-4 text-center mb-4 mb-md-0">
+                <div class="avatar-container mb-3">
+                  <img src="https://via.placeholder.com/150" alt="Profile" class="rounded-circle img-thumbnail">
+                </div>
+                <h4>{{ professionalName }}</h4>
+                <div class="rating mb-2">
+                  <i v-for="i in 5" :key="i" class="fas fa-star" 
+                    :class="i <= Math.round(profile.average_rating) ? 'text-warning' : 'text-muted'"></i>
+                  <span class="ms-1">{{ profile.average_rating.toFixed(1) }}/5</span>
+                </div>
+                <p class="badge bg-primary">{{ profile.service_type }}</p>
+              </div>
+              
+              <div class="col-md-8">
+                <div class="mb-3">
+                  <h6>About Me</h6>
+                  <p>{{ profile.description || 'No description provided.' }}</p>
+                </div>
+                
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <h6>Experience</h6>
+                    <p>{{ profile.experience }} years</p>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <h6>Joined</h6>
+                    <p>{{ formatDate(profile.date_created) }}</p>
+                  </div>
+                </div>
+                
+                <div class="mb-3">
+                  <h6>Specialization</h6>
+                  <p>{{ profile.service_type }}</p>
+                </div>
+                
+                <div class="mb-3">
+                  <h6>Contact Information</h6>
+                  <p class="mb-1"><i class="fas fa-envelope me-2"></i> {{ profile.email }}</p>
+                  <p class="mb-0"><i class="fas fa-phone me-2"></i> {{ profile.phone || 'Not provided' }}</p>
+                </div>
+              </div>
+            </div>
+            
+            <hr>
+            
+            <div class="profile-edit-section">
+              <h5 class="mb-3">Edit Profile</h5>
+              <form @submit.prevent="updateProfile">
+                <div class="mb-3">
+                  <label class="form-label">Description</label>
+                  <textarea v-model="profileForm.description" class="form-control" rows="3"></textarea>
+                </div>
+                
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Phone</label>
+                    <input type="tel" v-model="profileForm.phone" class="form-control">
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Experience (years)</label>
+                    <input type="number" v-model="profileForm.experience" class="form-control" min="0">
+                  </div>
+                </div>
+                
+                <div class="text-end">
+                  <button type="submit" class="btn btn-primary" :disabled="updatingProfile">
+                    <span v-if="updatingProfile" class="spinner-border spinner-border-sm me-1"></span>
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       </div>
@@ -252,7 +423,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, reactive } from 'vue';
 import { professionalAPI } from '@/services/api';
 
 export default {
@@ -269,10 +440,23 @@ export default {
       experience: 0,
       average_rating: 0,
       total_reviews: 0,
-      is_approved: false
+      is_approved: false,
+      description: '',
+      email: user.email || '',
+      phone: '',
+      date_created: new Date().toISOString()
     });
+    const reviews = ref([]);
     const showDetailsModal = ref(false);
+    const showProfileModal = ref(false);
     const selectedRequest = ref(null);
+    const isAvailable = ref(true);
+    const updatingProfile = ref(false);
+    const profileForm = reactive({
+      description: '',
+      phone: '',
+      experience: 0
+    });
 
     // Computed properties
     const pendingRequests = computed(() => 
@@ -307,11 +491,33 @@ export default {
           professionalAPI.getProfile()
         ]);
         serviceRequests.value = requestsData;
-        profile.value = profileData;
+        
+        // Populate profile data
+        profile.value = {
+          ...profile.value,
+          ...profileData
+        };
+        
+        // Initialize profile form with current values
+        profileForm.description = profileData.description || '';
+        profileForm.phone = profileData.phone || '';
+        profileForm.experience = profileData.experience || 0;
+        
+        // Fetch reviews
+        fetchReviews();
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
         loading.value = false;
+      }
+    };
+
+    const fetchReviews = async () => {
+      try {
+        const reviewsData = await professionalAPI.getReviews();
+        reviews.value = reviewsData;
+      } catch (error) {
+        console.error('Error fetching reviews:', error);
       }
     };
 
@@ -343,6 +549,12 @@ export default {
 
     const completeRequest = async (requestId, closeModal = false) => {
       try {
+        const request = serviceRequests.value.find(r => r.id === requestId);
+        if (request && !request.exited_location) {
+          alert('You must confirm that you have exited the customer location before completing the service.');
+          return;
+        }
+        
         await professionalAPI.updateStatus(requestId, 'completed');
         await fetchData();
         if (closeModal) {
@@ -354,8 +566,42 @@ export default {
     };
 
     const viewRequestDetails = (request) => {
-      selectedRequest.value = request;
+      // Add the exited_location property if needed
+      selectedRequest.value = {
+        ...request,
+        exited_location: false
+      };
       showDetailsModal.value = true;
+    };
+
+    const updateAvailability = async () => {
+      try {
+        await professionalAPI.updateAvailability(isAvailable.value);
+        alert(`You are now ${isAvailable.value ? 'available' : 'unavailable'} for new service requests.`);
+      } catch (error) {
+        console.error('Error updating availability:', error);
+        // Revert to previous state if there was an error
+        isAvailable.value = !isAvailable.value;
+      }
+    };
+
+    const updateProfile = async () => {
+      try {
+        updatingProfile.value = true;
+        await professionalAPI.updateProfile(profileForm);
+        
+        // Update local profile data
+        profile.value.description = profileForm.description;
+        profile.value.phone = profileForm.phone;
+        profile.value.experience = profileForm.experience;
+        
+        alert('Profile updated successfully!');
+      } catch (error) {
+        console.error('Error updating profile:', error);
+        alert('Failed to update profile. Please try again.');
+      } finally {
+        updatingProfile.value = false;
+      }
     };
 
     const formatDate = (dateString) => {
@@ -401,16 +647,23 @@ export default {
       loading,
       serviceRequests,
       profile,
+      reviews,
       pendingRequests,
       inProgressRequests,
       completedRequests,
       filteredRequests,
       showDetailsModal,
+      showProfileModal,
       selectedRequest,
+      isAvailable,
+      profileForm,
+      updatingProfile,
       acceptRequest,
       rejectRequest,
       completeRequest,
       viewRequestDetails,
+      updateAvailability,
+      updateProfile,
       formatDate,
       getStatusBadgeClass,
       getEmptyStateMessage
@@ -482,6 +735,28 @@ export default {
   height: 0.5rem;
   border-radius: 50%;
   background-color: #0d6efd;
+}
+
+.avatar-container {
+  width: 150px;
+  height: 150px;
+  margin: 0 auto;
+}
+
+.avatar-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.form-check-input[type="checkbox"] {
+  width: 1.25em;
+  height: 1.25em;
+}
+
+.list-group-item {
+  border-left: none;
+  border-right: none;
 }
 
 /* Responsive adjustments */
