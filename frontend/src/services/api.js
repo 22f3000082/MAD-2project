@@ -5,39 +5,29 @@ import router from '@/router'
 const api = axios.create({
   baseURL: 'http://localhost:8080',
   headers: {
-    'Content-Type': 'application/json'
-    // 'Accept': 'application/json'
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+    
   },
   withCredentials: true // Important for CORS with credentials
 })
 
-// Request interceptor
-// api.interceptors.request.use(
-//   config => {
-//     const token = localStorage.getItem('token')
-//     if (token) {
-//       // Format token properly - token may already have 'Bearer ' prefix
-//       const authToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`
-//       config.headers['Authorization'] = authToken
-//       console.log(`Request to ${config.url} with token: ${authToken.substring(0, 20)}...`)
-//     } else {
-//       console.warn(`No token found for request to: ${config.url}`)
-//     }
-//     return config
-//   },
-//   error => {
-//     console.error('Request error:', error)
-//     return Promise.reject(error)
-//   }
-// )
+// Request interceptor - fixed
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('token');
   if (token) {
-    config.headers['Authorization'] = `Bearer ${token}`;
+    // Flask-Security expects raw token without 'Bearer' prefix
+    config.headers['Authentication-Token'] = token;
+    
+    // Add Authorization header too for APIs that might expect it
+    // config.headers['Authorization'] = `Bearer ${token}`;
+    
+    console.log(`Request to ${config.url} with token: ${token.substring(0, 15)}...`);
+  } else {
+    console.warn(`No token found for request to: ${config.url}`);
   }
   return config;
 }, error => Promise.reject(error));
-
 
 // Response interceptor
 api.interceptors.response.use(
@@ -97,37 +87,16 @@ export const authService = {
     try {
       console.log('Attempting login:', credentials)
       const response = await api.post('/auth/login', credentials)
-      console.log('Login response:', response.data)
       
       if (response.data.token) {
-        // Store auth data - ensure token is saved correctly
-        const token = response.data.token
-        localStorage.setItem('token', token)
+        localStorage.setItem('token', response.data.token)
         localStorage.setItem('user', JSON.stringify(response.data.user))
         
-        // Verify token was saved correctly
-        const savedToken = localStorage.getItem('token')
-        console.log(`Token saved successfully: ${savedToken ? 'Yes' : 'No'}`)
-        console.log(`Saved token (first 15 chars): ${savedToken ? savedToken.substring(0, 15) : 'None'}`)
-        
-        // Debug: Check the localStorage item immediately
-        console.log('localStorage.token:', localStorage.getItem('token'))
-        console.log('localStorage.user:', localStorage.getItem('user'))
-
-        // Get target route path
-        const targetPath = `/${response.data.user.role}/dashboard`
-        
-        // Short delay to ensure token is saved before redirection
-        setTimeout(() => {
-          // Only navigate if not already on target page
-          // if (router.currentRoute.path !== targetPath) {
-            router.push(targetPath).catch(err => {
-              if (err.name !== 'NavigationDuplicated') {
-                console.error('Navigation error:', err)
-              }
-            })
-          }
-        , 500)
+        // Simplified navigation
+        const path = `/${response.data.user.role}/dashboard`
+        router.push(path).catch(err => {
+          console.error('Navigation error:', err)
+        })
       }
       
       return response.data
@@ -177,43 +146,54 @@ export const authService = {
 export const serviceAPI = {
   async getServices(params = {}) {
     try {
-      // hiihihih
-      const response = await api.get('/api/admin/services', { params })
-      return response.data
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await api.get('/api/admin/services', { 
+        params,
+        headers: {
+          'Authentication-Token': token
+        }
+      });
+      return response.data;
     } catch (error) {
       console.error('Error fetching services:', error)
-      throw error
-    }
-  },
-  async mounted() {
-    try {
-      this.services = await this.searchServices();
-      console.log("Services loaded:", this.services);
-    } catch (error) {
-      console.error("Failed to load services:", error);
+      throw error;
     }
   },
 
   async getServiceById(id) {
     try {
-      const response = await api.get(`/api/services/${id}`)
-      return response.data
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await api.get(`/api/services/${id}`, {
+        headers: {
+          'Authentication-Token': token
+        }
+      });
+      return response.data;
     } catch (error) {
       console.error('Error fetching service:', error)
-      throw error
+      throw error;
+    }
+  },
+  
+  // Add a new method to fetch service types directly
+  async getServiceTypes() {
+    try {
+      const response = await api.get('/api/service-types');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching service types:', error);
+      throw error;
     }
   }
 }
-  // async searchServices(params) {
-  //   try {
-  //     const response = await api.get('/api/services/search', { params })
-  //     return response.data
-  //   } catch (error) {
-  //     console.error('Error searching services:', error)
-  //     throw error
-  //   }
-  // },
-
 
 export const customerAPI = {
   async getRequests() {
@@ -321,38 +301,31 @@ export const professionalAPI = {
 export const adminAPI = {
   async getUsers(role = null) {
     try {
-      // Make sure token is present in localStorage
-      const token = localStorage.getItem('token')
+      console.log('Fetching users...');
+      const token = localStorage.getItem('token');
       if (!token) {
-        throw new Error('Token not found in localStorage');
+        throw new Error('No authentication token found');
       }
-    
-      // console.log(`Fetching users with token: ${token ? token.substring(0, 15) + '...' : 'No token!'}`)
-      
-      const params = role ? { role } : {}
-      // Add a small delay to ensure token is available
-      // await new Promise(resolve => setTimeout(resolve, 300))
-      
-      const response = await api.get('/api/admin/users'
-        , { params,
-        headers: {
-          'Authentication-Token': `Bearer${token}`  // Add token explicitly to request
-          // Authorization: `Bearer ${localStorage.getItem('token')}`,
-        }
-    })
-      console.log('Users response:', response.data)
-      return response.data
-    } catch (error) {
-      console.error('Error fetching users:', error.response?.data || error.message)
-      if (error.response && error.response.status === 401) {
-        // Handle unauthorized error specifically
-        console.log('Unauthorized. Please check your token.');
-      } else {
-      throw error
-    }
-  }
-  },
 
+      const params = role ? { role } : {};
+      const response = await api.get('/api/admin/users', { params });
+      
+      // Ensure users have the 'name' property for display
+      return response.data.map(user => {
+        if (!user.name) {
+          // Set a fallback name if none is provided
+          user.name = user.username || `User ${user.id}`;
+        }
+        return user;
+      });
+    } catch (error) {
+      console.error('Error fetching users:', error.response?.data || error.message);
+      if (error.response?.status === 401) {
+        console.log('Unauthorized. Please check your token.');
+      }
+      throw error;
+    }
+  },
 
   async approveUser(userId) {
     try {
@@ -392,97 +365,95 @@ export const adminAPI = {
 
   async getServices() {
     try {
-      // Make sure token is present in localStorage
-      const token = localStorage.getItem('token')
+      console.log('Fetching services...');
+      const token = localStorage.getItem('token');
       if (!token) {
-        throw new Error('Token not found in localStorage');
+        throw new Error('No authentication token found');
       }
-      console.log(`Fetching services with token: ${token ? token.substring(0, 15) + '...' : 'No token!'}`)
+
+      const response = await api.get('/api/admin/services');
       
-      // Add a small delay to ensure token is available
-      await new Promise(resolve => setTimeout(resolve, 300))
-      
-      const response = await api.get('/api/admin/services', {
-        headers: {
-          'Authentication-Token': `Bearer ${token}`  // Add token explicitly to request
-        }
-      })
-      console.log('Services response:', response.data)
-      return response.data
+      // Transform services to expected format
+      return response.data.map(service => ({
+        id: service.id,
+        name: service.name,
+        description: service.description || '',
+        basePrice: service.base_price,
+        timeRequired: service.time_required,
+        category: service.category || 'General',
+        status: service.is_active !== false ? 'active' : 'inactive'
+      }));
     } catch (error) {
-      console.error('Error fetching services:', error.response?.data || error.message)
-      throw error
+      console.error('Error fetching services:', error.response?.data || error.message);
+      throw error;
     }
   },
 
-  // async getService(serviceId) {
-  //   try {
-  //     const response = await api.get(`/api/admin/services/${serviceId}`)
-  //     return response.data
-  //   } catch (error) {
-  //     console.error('Error fetching service:', error)
-  //     throw error
-  //   }
-  // },
-
   async createService(serviceData) {
     try {
-        // Convert field names to snake_case for backend compatibility
-        const formattedData = {
-            name: serviceData.name,
-            description: serviceData.description,
-            base_price: Number(serviceData.basePrice), // Ensure number type
-            time_required: Number(serviceData.timeRequired), // Ensure number type
-            category: serviceData.category
-        };
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
 
-        console.log('Creating service with formatted data:', formattedData);
-        
-        const response = await api.post('/api/admin/services', formattedData);
-        console.log('Service created:', response.data);
+      const formattedData = {
+        name: serviceData.name,
+        description: serviceData.description,
+        base_price: Number(serviceData.basePrice),
+        time_required: Number(serviceData.timeRequired),
+        category: serviceData.category || 'General'
+      };
 
-            
-        // // Display a success flash message
-        // const flashContainer = document.getElementById('flash-messages');
-        // const flashMessage = document.createElement('div');
-        // flashMessage.classList.add('flash-message');
-        // flashMessage.textContent = 'Service created successfully!';
-        // flashContainer.appendChild(flashMessage);
-    
-        // // Auto-hide the message after a few seconds
-        // setTimeout(() => {
-        //   flashMessage.remove();
-        // }, 3000)
-        return response.data;
-        } catch (error) {
-        console.error('Error creating service:', error.response?.data || error);
-        
-        // Handle specific validation errors
-        if (error.response?.status === 400) {
-            throw new Error(`Validation error: ${error.response.data.message || 'Invalid data'}`);
+      const response = await api.post('/api/admin/services', formattedData, {
+        headers: {
+          'Authentication-Token': token
         }
-        
-        throw error;
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error creating service:', error.response?.data || error);
+      if (error.response?.status === 400) {
+        throw new Error(`Validation error: ${error.response.data.message || 'Invalid data'}`);
+      }
+      throw error;
     }
-},
+  },
 
   async updateService(serviceId, serviceData) {
     try {
-      const response = await api.put(`/api/admin/services/${serviceId}`, serviceData)
-      return response.data
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await api.put(`/api/admin/services/${serviceId}`, serviceData, {
+        headers: {
+          'Authentication-Token': token
+        }
+      });
+      return response.data;
     } catch (error) {
-      console.error('Error updating service:', error)
-      throw error
+      console.error('Error updating service:', error);
+      throw error;
     }
   },
 
   async deleteService(serviceId) {
     try {
-      const response = await api.delete(`/api/admin/services/${serviceId}`)
-      return response.data
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await api.delete(`/api/admin/services/${serviceId}`, {
+        headers: {
+          'Authentication-Token': token
+        }
+      });
+      return response.data;
     } catch (error) {
-      console.error('Error deleting service:', error)
-      throw error
+      console.error('Error deleting service:', error);
+      throw error;
     }
   }
 }

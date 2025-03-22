@@ -45,6 +45,13 @@ const routes = [
     name: 'ServiceRequest',
     component: () => import('@/views/ServiceRequest.vue'),
     meta: { requiresAuth: true, requiresCustomer: true }
+  },
+  {
+    path: '/service-details/:serviceId',
+    name: 'ServiceDetails',
+    component: () => import('@/views/ServiceDetails.vue'),
+    props: true,
+    meta: { requiresAuth: true, requiresCustomer: true }
   }
 ]
 
@@ -55,81 +62,42 @@ const router = new VueRouter({
   routes
 })
 
-// Navigation guard
+// Navigation guard - simplified
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   const userStr = localStorage.getItem('user')
   const user = userStr ? JSON.parse(userStr) : {}
   
-  console.log('Navigation:', {
-    to: to.path,
-    hasToken: !!token,
-    userRole: user.role,
-    requiresAuth: to.matched.some(r => r.meta.requiresAuth),
-    requiresAdmin: to.matched.some(r => r.meta.requiresAdmin)
-  })
-  
-  // // Handle routes requiring authentication
-  // if (to.matched.some(record => record.meta.requiresAuth)) {
-  //   if (!token) {
-  //     if (to.path !== '/login') { // Only redirect if not already on /login
-  //       console.log('Auth required but no token found - redirecting to login')
-  //       next('/login')
-  //     } else {
-  //       console.log('Already on login page, no need to redirect')
-  //       next()
-  //     }
-  //     return
-  //   }
-    
-    // Handle auth required routes
-    if (to.matched.some(record => record.meta.requiresAuth)) {
-      if (!token) {
-        console.log('Auth required but no token found - redirecting to login');
-        return next('/login')
-      }
-    
-    console.log('Checking role-specific requirements')
-    console.log('User role:', user.role)
+  // Handle routes requiring authentication
+  if (to.matched.some(record => record.meta.requiresAuth)) {
+    if (!token) {
+      console.log('Auth required but no token found')
+      return next('/login')
+    }
     
     // Check role-specific requirements
     if (to.meta.requiresAdmin && user.role !== 'admin') {
-      console.log('Admin route access denied for non-admin user')
-      next('/')
-      return
+      return next('/')
     }
     
     if (to.meta.requiresCustomer && user.role !== 'customer') {
-      console.log('Customer route access denied for non-customer user')
-      next('/')
-      return
+      return next('/')
     }
     
     if (to.meta.requiresProfessional && user.role !== 'professional') {
-      console.log('Professional route access denied for non-professional user')
-      next('/')
-      return
+      return next('/')
     }
   }
 
-  console.log('Navigation allowed to', to.path);
-   next(); // Allow navigation
-  // Guest routes (login/register) should redirect already logged-in users
-  if (to.matched.some(record => record.meta.guest) && token) {
-    // if (token && to.path === '/login') {
-      console.log('User already logged in, avoiding unnecessary login navigation')
-    if (user.role === 'customer') {
-      next('/customer/dashboard')
-    } else if (user.role === 'professional') {
-      next('/professional/dashboard')
-    } else if (user.role === 'admin') {
-      next('/admin/dashboard')
-    } else {
-      next('/')
-    }
-    return}
-  });
- 
-    // next()
+  // Redirect logged-in users away from login page
+  if (to.path === '/login' && token) {
+    if (user.role === 'admin') return next('/admin/dashboard')
+    if (user.role === 'customer') return next('/customer/dashboard')
+    if (user.role === 'professional') return next('/professional/dashboard')
+    return next('/')
+  }
   
+  next()
+})
+
 export default router

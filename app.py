@@ -58,13 +58,13 @@ def create_app():
 
     
     # Configure CORS - Updated configuration
-    CORS(app, supports_credentials=True)
+    # CORS(app, supports_credentials=True)
     CORS(app, resources={
              r"/*": {
-                 "origins": ["http://localhost:8081", "http://localhost:8080"],
+                 "origins": "http://localhost:8081",
                  "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                  "allow_headers": ["Content-Type", "Authentication-Token", "Accept"],
-                 "expose_headers": ["Content-Type", "Authentication-Token"],
+                 "expose_headers": ["Content-Type", "Authorization"],
                  "supports_credentials": True
              }
          },
@@ -115,11 +115,26 @@ def create_app():
     @app.after_request
     def after_request(response):
         origin = request.headers.get('Origin')
-        if origin in ['http://127.0.0.1:8081 ', 'http://127.0.0.1:8080 ']:
+        if origin == 'http://localhost:8081':
             response.headers.add('Access-Control-Allow-Origin', origin)
             response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authentication-Token,Accept')
             response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
             response.headers.add('Access-Control-Allow-Credentials', 'true')
+            response.headers.add('Access-Control-Expose-Headers', 'Authentication-Token')
+        return response
+
+    # Handle OPTIONS requests
+    @app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
+    @app.route('/<path:path>', methods=['OPTIONS'])
+    def handle_options(path):
+        response = make_response()
+        origin = request.headers.get('Origin')
+        if origin == 'http://localhost:8081':
+            response.headers.add('Access-Control-Allow-Origin', origin)
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authentication-Token,Accept')
+            response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            response.headers.add('Access-Control-Expose-Headers', '')
         return response
 
     # Add error handlers

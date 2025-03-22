@@ -2,231 +2,250 @@
   <div class="admin-dashboard">
     <!-- Top Stats Cards -->
     <div class="container-fluid py-4">
-      <div class="row g-4 mb-4">
-        <div class="col-xl-3 col-sm-6">
-          <div class="card bg-primary text-white">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 class="card-title mb-0">Total Users</h6>
-                  <h2 class="mt-2 mb-0">{{ stats.totalUsers }}</h2>
-                </div>
-                <div class="icon-shape bg-white text-primary rounded-circle">
-                  <i class="fas fa-users fa-2x"></i>
-                </div>
-              </div>
-            </div>
-          </div>
+      <!-- Loading State -->
+      <div v-if="loading" class="text-center my-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
         </div>
-        <div class="col-xl-3 col-sm-6">
-          <div class="card bg-success text-white">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 class="card-title mb-0">Active Services</h6>
-                  <h2 class="mt-2 mb-0">{{ stats.activeServices }}</h2>
-                </div>
-                <div class="icon-shape bg-white text-success rounded-circle">
-                  <i class="fas fa-tools fa-2x"></i>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="col-xl-3 col-sm-6">
-          <div class="card bg-warning text-white">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 class="card-title mb-0">Pending Approvals</h6>
-                  <h2 class="mt-2 mb-0">{{ stats.pendingApprovals }}</h2>
-                </div>
-                <div class="icon-shape bg-white text-warning rounded-circle">
-                  <i class="fas fa-clock fa-2x"></i>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="col-xl-3 col-sm-6">
-          <div class="card bg-danger text-white">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <h6 class="card-title mb-0">Blocked Users</h6>
-                  <h2 class="mt-2 mb-0">{{ stats.blockedUsers }}</h2>
-                </div>
-                <div class="icon-shape bg-white text-danger rounded-circle">
-                  <i class="fas fa-ban fa-2x"></i>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <p class="mt-2">Loading dashboard data...</p>
       </div>
 
-      <!-- Main Content Tabs -->
-      <div class="card">
-        <div class="card-header">
-          <ul class="nav nav-tabs card-header-tabs">
-            <li class="nav-item" v-for="tab in tabs" :key="tab.id">
-              <a class="nav-link" :class="{ active: currentTab === tab.id }" 
-                 @click="currentTab = tab.id" href="#">
-                <i :class="tab.icon"></i> {{ tab.name }}
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div class="card-body">
-          <!-- Users Management Tab -->
-          <div v-if="currentTab === 'users'" class="users-management">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-              <div class="d-flex gap-2">
-                <input v-model="userSearch" type="text" class="form-control" 
-                       placeholder="Search users...">
-                <select v-model="userTypeFilter" class="form-select">
-                  <option value="">All Users</option>
-                  <option value="professional">Professionals</option>
-                  <option value="customer">Customers</option>
-                  <option value="pending">Pending Approval</option>
-                </select>
-              </div>
-              <div class="d-flex gap-2">
-                <button class="btn btn-outline-primary" @click="refreshUsers">
-                  <i class="fas fa-sync-alt"></i> Refresh
-                </button>
-              </div>
-            </div>
+      <!-- Error State -->
+      <div v-else-if="error" class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        {{ error }}
+        <button class="btn btn-outline-danger btn-sm ms-3" @click="loadDashboardData">
+          <i class="fas fa-sync-alt"></i> Retry
+        </button>
+      </div>
 
-            <div v-if="pendingApprovals.length > 0" class="alert alert-warning mb-4">
-              <i class="fas fa-exclamation-triangle me-2"></i>
-              <strong>{{ pendingApprovals.length }} professional{{ pendingApprovals.length > 1 ? 's' : '' }}</strong> pending approval
-            </div>
-
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="user in filteredUsers" :key="user.id" 
-                      :class="{'table-warning': user.role === 'professional' && !user.is_approved}">
-                    <td>{{ user.id }}</td>
-                    <td>{{ user.name }}</td>
-                    <td>{{ user.email }}</td>
-                    <td>
-                      <span class="badge" 
-                            :class="user.role === 'professional' ? 'bg-info' : 'bg-secondary'">
-                        {{ user.role }}
-                      </span>
-                    </td>
-                    <td>
-                      <span v-if="user.role === 'professional' && !user.is_approved" 
-                            class="badge bg-warning">Pending Approval</span>
-                      <span v-else class="badge" 
-                            :class="user.is_blocked ? 'bg-danger' : 'bg-success'">
-                        {{ user.is_blocked ? 'Blocked' : 'Active' }}
-                      </span>
-                    </td>
-                    <td>
-                      <div class="btn-group">
-                        <button v-if="user.role === 'professional' && !user.is_approved"
-                                class="btn btn-sm btn-success" 
-                                @click="approveUser(user.id)">
-                          <i class="fas fa-check"></i> Approve
-                        </button>
-                        <button class="btn btn-sm" 
-                                :class="user.is_blocked ? 'btn-success' : 'btn-danger'"
-                                @click="toggleUserBlock(user)">
-                          <i class="fas" :class="user.is_blocked ? 'fa-unlock' : 'fa-ban'"></i>
-                          {{ user.is_blocked ? 'Unblock' : 'Block' }}
-                        </button>
-                        <button class="btn btn-sm btn-info" @click="viewUserDetails(user)">
-                          <i class="fas fa-eye"></i> View
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Services Management Tab -->
-          <div v-if="currentTab === 'services'" class="services-management">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-              <div class="d-flex gap-2">
-                <input v-model="serviceSearch" type="text" class="form-control" 
-                       placeholder="Search services...">
-              </div>
-              <button class="btn btn-primary" @click="showNewServiceModal">
-                <i class="fas fa-plus"></i> New Service
-              </button>
-            </div>
-
-            <div class="table-responsive">
-              <table class="table table-hover">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Base Price</th>
-                    <th>Time Required</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="service in filteredServices" :key="service.id">
-                    <td>{{ service.id }}</td>
-                    <td>{{ service.name }}</td>
-                    <td>₹{{ service.basePrice }}</td>
-                    <td>{{ service.timeRequired }}</td>
-                    <td>
-                      <span class="badge" 
-                            :class="service.status === 'active' ? 'bg-success' : 'bg-danger'">
-                        {{ service.status }}
-                      </span>
-                    </td>
-                    <td>
-                      <div class="btn-group">
-                        <button class="btn btn-sm btn-warning" @click="editService(service)">
-                          <i class="fas fa-edit"></i> Edit
-                        </button>
-                        <button class="btn btn-sm btn-danger" @click="deleteService(service.id)">
-                          <i class="fas fa-trash"></i> Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Analytics Tab -->
-          <div v-if="currentTab === 'analytics'" class="analytics">
-            <div class="row">
-              <div class="col-md-6">
-                <div class="card">
-                  <div class="card-body">
-                    <h5 class="card-title">Service Requests by Status</h5>
-                    <canvas ref="requestsChart"></canvas>
+      <div v-else>
+        <div class="row g-4 mb-4">
+          <div class="col-xl-3 col-sm-6">
+            <div class="card bg-primary text-white">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <h6 class="card-title mb-0">Total Users</h6>
+                    <h2 class="mt-2 mb-0">{{ stats.totalUsers }}</h2>
+                  </div>
+                  <div class="icon-shape bg-white text-primary rounded-circle">
+                    <i class="fas fa-users fa-2x"></i>
                   </div>
                 </div>
               </div>
-              <div class="col-md-6">
-                <div class="card">
-                  <div class="card-body">
-                    <h5 class="card-title">User Registration Trend</h5>
-                    <canvas ref="usersChart"></canvas>
+            </div>
+          </div>
+          <div class="col-xl-3 col-sm-6">
+            <div class="card bg-success text-white">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <h6 class="card-title mb-0">Active Services</h6>
+                    <h2 class="mt-2 mb-0">{{ stats.activeServices }}</h2>
+                  </div>
+                  <div class="icon-shape bg-white text-success rounded-circle">
+                    <i class="fas fa-tools fa-2x"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-xl-3 col-sm-6">
+            <div class="card bg-warning text-white">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <h6 class="card-title mb-0">Pending Approvals</h6>
+                    <h2 class="mt-2 mb-0">{{ stats.pendingApprovals }}</h2>
+                  </div>
+                  <div class="icon-shape bg-white text-warning rounded-circle">
+                    <i class="fas fa-clock fa-2x"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-xl-3 col-sm-6">
+            <div class="card bg-danger text-white">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <h6 class="card-title mb-0">Blocked Users</h6>
+                    <h2 class="mt-2 mb-0">{{ stats.blockedUsers }}</h2>
+                  </div>
+                  <div class="icon-shape bg-white text-danger rounded-circle">
+                    <i class="fas fa-ban fa-2x"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Content Tabs -->
+        <div class="card">
+          <div class="card-header">
+            <ul class="nav nav-tabs card-header-tabs">
+              <li class="nav-item" v-for="tab in tabs" :key="tab.id">
+                <a class="nav-link" :class="{ active: currentTab === tab.id }" 
+                   @click="currentTab = tab.id" href="#">
+                  <i :class="tab.icon"></i> {{ tab.name }}
+                </a>
+              </li>
+            </ul>
+          </div>
+          <div class="card-body">
+            <!-- Users Management Tab -->
+            <div v-if="currentTab === 'users'" class="users-management">
+              <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="d-flex gap-2">
+                  <input id="userSearchInput" name="userSearch" v-model="userSearch" type="text" class="form-control" 
+                         placeholder="Search users...">
+                  <select id="userTypeFilter" name="userTypeFilter" v-model="userTypeFilter" class="form-select">
+                    <option value="">All Users</option>
+                    <option value="professional">Professionals</option>
+                    <option value="customer">Customers</option>
+                    <option value="pending">Pending Approval</option>
+                  </select>
+                </div>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-outline-primary" @click="refreshUsers">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="pendingApprovals.length > 0" class="alert alert-warning mb-4">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>{{ pendingApprovals.length }} professional{{ pendingApprovals.length > 1 ? 's' : '' }}</strong> pending approval
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="user in filteredUsers" :key="user.id" 
+                        :class="{'table-warning': user.role === 'professional' && !user.is_approved}">
+                      <td>{{ user.id }}</td>
+                      <td>{{ user.name }}</td>
+                      <td>{{ user.email }}</td>
+                      <td>
+                        <span class="badge" 
+                              :class="user.role === 'professional' ? 'bg-info' : 'bg-secondary'">
+                          {{ user.role }}
+                        </span>
+                      </td>
+                      <td>
+                        <span v-if="user.role === 'professional' && !user.is_approved" 
+                              class="badge bg-warning">Pending Approval</span>
+                        <span v-else class="badge" 
+                              :class="user.is_blocked ? 'bg-danger' : 'bg-success'">
+                          {{ user.is_blocked ? 'Blocked' : 'Active' }}
+                        </span>
+                      </td>
+                      <td>
+                        <div class="btn-group">
+                          <button v-if="user.role === 'professional' && !user.is_approved"
+                                  class="btn btn-sm btn-success" 
+                                  @click="approveUser(user.id)">
+                            <i class="fas fa-check"></i> Approve
+                          </button>
+                          <button class="btn btn-sm" 
+                                  :class="user.is_blocked ? 'btn-success' : 'btn-danger'"
+                                  @click="toggleUserBlock(user)">
+                            <i class="fas" :class="user.is_blocked ? 'fa-unlock' : 'fa-ban'"></i>
+                            {{ user.is_blocked ? 'Unblock' : 'Block' }}
+                          </button>
+                          <button class="btn btn-sm btn-info" @click="viewUserDetails(user)">
+                            <i class="fas fa-eye"></i> View
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Services Management Tab -->
+            <div v-if="currentTab === 'services'" class="services-management">
+              <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="d-flex gap-2">
+                  <input id="serviceSearchInput" name="serviceSearch" v-model="serviceSearch" type="text" class="form-control" 
+                         placeholder="Search services...">
+                </div>
+                <button class="btn btn-primary" @click="showNewServiceModal">
+                  <i class="fas fa-plus"></i> New Service
+                </button>
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Name</th>
+                      <th>Base Price</th>
+                      <th>Time Required</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="service in filteredServices" :key="service.id">
+                      <td>{{ service.id }}</td>
+                      <td>{{ service.name }}</td>
+                      <td>₹{{ service.basePrice }}</td>
+                      <td>{{ service.timeRequired }}</td>
+                      <td>
+                        <span class="badge" 
+                              :class="service.status === 'active' ? 'bg-success' : 'bg-danger'">
+                          {{ service.status }}
+                        </span>
+                      </td>
+                      <td>
+                        <div class="btn-group">
+                          <button class="btn btn-sm btn-warning" @click="editService(service)">
+                            <i class="fas fa-edit"></i> Edit
+                          </button>
+                          <button class="btn btn-sm btn-danger" @click="deleteService(service.id)">
+                            <i class="fas fa-trash"></i> Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Analytics Tab -->
+            <div v-if="currentTab === 'analytics'" class="analytics">
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="card">
+                    <div class="card-body">
+                      <h5 class="card-title">Service Requests by Status</h5>
+                      <canvas ref="requestsChart"></canvas>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="card">
+                    <div class="card-body">
+                      <h5 class="card-title">User Registration Trend</h5>
+                      <canvas ref="usersChart"></canvas>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -247,20 +266,20 @@
           <div class="modal-body">
             <form @submit.prevent="saveService">
               <div class="mb-3">
-                <label class="form-label">Service Name</label>
-                <input v-model="serviceForm.name" type="text" class="form-control" required>
+                <label for="serviceName" class="form-label">Service Name</label>
+                <input id="serviceName" name="serviceName" v-model="serviceForm.name" type="text" class="form-control" required>
               </div>
               <div class="mb-3">
-                <label class="form-label">Description</label>
-                <textarea v-model="serviceForm.description" class="form-control" rows="3" required></textarea>
+                <label for="serviceDescription" class="form-label">Description</label>
+                <textarea id="serviceDescription" name="serviceDescription" v-model="serviceForm.description" class="form-control" rows="3" required></textarea>
               </div>
               <div class="mb-3">
-                <label class="form-label">Base Price (₹)</label>
-                <input v-model="serviceForm.basePrice" type="number" class="form-control" required>
+                <label for="serviceBasePrice" class="form-label">Base Price (₹)</label>
+                <input id="serviceBasePrice" name="serviceBasePrice" v-model="serviceForm.basePrice" type="number" class="form-control" required>
               </div>
               <div class="mb-3">
-                <label class="form-label">Time Required (hours)</label>
-                <input v-model="serviceForm.timeRequired" type="number" class="form-control" required>
+                <label for="serviceTimeRequired" class="form-label">Time Required (hours)</label>
+                <input id="serviceTimeRequired" name="serviceTimeRequired" v-model="serviceForm.timeRequired" type="number" class="form-control" required>
               </div>
               <div class="text-end">
                 <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancel</button>
@@ -381,6 +400,8 @@ export default {
     const selectedUser = ref(null)
     const requestsChart = ref(null)
     const usersChart = ref(null)
+    const loading = ref(false)
+    const error = ref(null)
 
     // Tabs configuration
     const tabs = [
@@ -416,18 +437,42 @@ export default {
 
     // Methods
     const loadDashboardData = async () => {
+      loading.value = true;
+      error.value = null;
       try {
-        const [usersData, servicesData] = await Promise.all([
-          adminAPI.getUsers(),
-          adminAPI.getServices()
-        ])
-        users.value = usersData
-        services.value = servicesData
-        updateStats()
-      } catch (error) {
-        console.error('Error loading dashboard data:', error)
+        console.log('Loading dashboard data...');
+        // Debug token information
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('No authentication token found. Please login again.');
+        }
+        console.log(`Token exists: ${token.substring(0, 10)}...`);
+        
+        // Load users data first - if this fails, we know authentication is an issue
+        const usersData = await adminAPI.getUsers();
+        console.log(`Loaded ${usersData.length} users successfully`);
+        users.value = usersData;
+
+        try {
+          // Now try to load services
+          const servicesData = await adminAPI.getServices();
+          console.log(`Loaded ${servicesData.length} services successfully`);
+          services.value = servicesData;
+        } catch (servicesError) {
+          console.error('Error loading services:', servicesError);
+          // Don't fail completely, just show users without services
+          services.value = [];
+        }
+
+        // Update dashboard stats
+        updateStats();
+        loading.value = false;
+      } catch (err) {
+        console.error('Error loading dashboard data:', err);
+        error.value = err.message || 'Failed to load dashboard data. Please try again.';
+        loading.value = false;
       }
-    }
+    };
 
     const updateStats = () => {
       stats.value = {
@@ -569,11 +614,30 @@ export default {
       }
     }
 
+    const refreshUsers = async () => {
+      loading.value = true;
+      error.value = null;
+      try {
+        const userData = await adminAPI.getUsers();
+        users.value = userData;
+        updateStats();
+      } catch (error) {
+        console.error('Error refreshing users:', error);
+        error.value = error.message || 'Failed to refresh users';
+      } finally {
+        loading.value = false;
+      }
+    };
+
     // Lifecycle hooks
     onMounted(() => {
-      loadDashboardData()
-      initCharts()
-    })
+      console.log('AdminDashboard mounted - loading data...');
+      loadDashboardData();
+      // Initialize charts after a delay to ensure DOM is ready
+      setTimeout(() => {
+        initCharts();
+      }, 1000);
+    });
 
     return {
       stats,
@@ -590,6 +654,8 @@ export default {
       filteredUsers,
       filteredServices,
       pendingApprovals,
+      loading,
+      error,
       showNewServiceModal,
       editService,
       saveService,
@@ -597,7 +663,8 @@ export default {
       approveUser,
       toggleUserBlock,
       viewUserDetails,
-      refreshUsers: loadDashboardData
+      refreshUsers,
+      loadDashboardData
     }
   }
 }

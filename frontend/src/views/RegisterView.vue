@@ -10,26 +10,26 @@
               
               <form @submit.prevent="handleSubmit" class="needs-validation" novalidate>
                 <div class="mb-3">
-                  <label class="form-label">Full Name</label>
-                  <input type="text" class="form-control" v-model="formData.name" required :class="{ 'is-invalid': errors.name }">
+                  <label for="fullName" class="form-label">Full Name</label>
+                  <input type="text" id="fullName" name="fullName" class="form-control" v-model="formData.name" required :class="{ 'is-invalid': errors.name }">
                   <div class="invalid-feedback">{{ errors.name }}</div>
                 </div>
 
                 <div class="mb-3">
-                  <label class="form-label">Username</label>
-                  <input type="text" class="form-control" v-model="formData.username" required :class="{ 'is-invalid': errors.username }">
+                  <label for="username" class="form-label">Username</label>
+                  <input type="text" id="username" name="username" class="form-control" v-model="formData.username" required :class="{ 'is-invalid': errors.username }">
                   <div class="invalid-feedback">{{ errors.username }}</div>
                 </div>
 
                 <div class="mb-3">
-                  <label class="form-label">Email</label>
-                  <input type="email" class="form-control" v-model="formData.email" required :class="{ 'is-invalid': errors.email }">
+                  <label for="email" class="form-label">Email</label>
+                  <input type="email" id="email" name="email" class="form-control" v-model="formData.email" required :class="{ 'is-invalid': errors.email }">
                   <div class="invalid-feedback">{{ errors.email }}</div>
                 </div>
 
                 <div class="mb-3">
-                  <label class="form-label">Password</label>
-                  <input type="password" class="form-control" v-model="formData.password" required :class="{ 'is-invalid': errors.password }">
+                  <label for="password" class="form-label">Password</label>
+                  <input type="password" id="password" name="password" class="form-control" v-model="formData.password" required :class="{ 'is-invalid': errors.password }">
                   <div class="invalid-feedback">{{ errors.password }}</div>
                 </div>
                 

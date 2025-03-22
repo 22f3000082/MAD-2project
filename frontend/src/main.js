@@ -11,9 +11,10 @@ const token = localStorage.getItem('token'); // Ensure this is not null
 axios.defaults.baseURL = process.env.VUE_APP_API_URL || 'http://127.0.0.1:8080'
 axios.defaults.headers.common['Content-Type'] = 'application/json'
 // In your frontend API calls:
-axios.defaults.headers.common['Authentication-Token'] = `Bearer ${token}`;
+// axios.defaults.headers.common['Authentication-Token'] = `Bearer ${token}`;
 axios.defaults.headers.common['Authentication-Token'] = token;
 // Add axios to Vue prototype
+axios.defaults.withCredentials = true
 Vue.prototype.$axios = axios
 
 // Configure Vue
