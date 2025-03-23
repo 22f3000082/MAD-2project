@@ -111,7 +111,7 @@ class Service(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True, nullable=False)
     description = db.Column(db.Text, nullable=True)
-    base_price = db.Column(db.Float, nullable=False)
+    base_price = db.Column(db.Integer, nullable=False)
     time_required = db.Column(db.Integer, nullable=False)  # in minutes
     category = db.Column(db.String(50), nullable=False)  # e.g., 'Plumbing', 'Electrical', 'AC'
     

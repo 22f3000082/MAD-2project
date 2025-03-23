@@ -205,7 +205,7 @@
                     <tr v-for="service in filteredServices" :key="service.id">
                       <td>{{ service.id }}</td>
                       <td>{{ service.name }}</td>
-                      <td>₹{{ service.basePrice }}</td>
+                      <td>₹{{ service.base_price }}</td>
                       <td>{{ service.timeRequired }}</td>
                       <td>
                         <span class="badge" 
@@ -275,7 +275,7 @@
               </div>
               <div class="mb-3">
                 <label for="serviceBasePrice" class="form-label">Base Price (₹)</label>
-                <input id="serviceBasePrice" name="serviceBasePrice" v-model="serviceForm.basePrice" type="number" class="form-control" required>
+                <input id="serviceBasePrice" name="serviceBasePrice" v-model="serviceForm.base_price" type="number" class="form-control" required>
               </div>
               <div class="mb-3">
                 <label for="serviceTimeRequired" class="form-label">Time Required (hours)</label>
@@ -283,7 +283,8 @@
               </div>
               <div class="text-end">
                 <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="submit" class="btn btn-primary" 
+                @click.prevent="saveService" >Save</button>
               </div>
             </form>
           </div>
@@ -393,7 +394,7 @@ export default {
     const serviceForm = ref({
       name: '',
       description: '',
-      basePrice: '',
+      base_price: '',
       timeRequired: ''
     })
     const editingService = ref(null)
@@ -491,7 +492,7 @@ export default {
       serviceForm.value = {
         name: '',
         description: '',
-        basePrice: '',
+        base_price: '',
         timeRequired: ''
       }
       new Modal(document.getElementById('serviceModal')).show()
@@ -505,8 +506,9 @@ export default {
 
     const saveService = async () => {
       try {
+
         if (editingService.value) {
-          await adminAPI.updateService(editingService.value.id, serviceForm.value)
+          await adminAPI.update_service(editingService.value.id, serviceForm.value)
         } else {
           await adminAPI.createService(serviceForm.value)
         }

@@ -1,6 +1,6 @@
 from flask import current_app, Blueprint, request, jsonify, abort
 from flask_security import Security, SQLAlchemyUserDatastore, hash_password,roles_required, current_user
-from backend.application.models import db, User, Role, Admin, Customer, ServiceProfessional
+from backend.application.models import db, User, Role, Admin, Customer, ServiceProfessional, BlockedUsers, ServiceRequest, Reviews, Service
 from functools import wraps
 
 import uuid
@@ -47,20 +47,29 @@ def init_security(app):
         customer_email = 'customer@household.com'
         if not user_datastore.find_user(email=customer_email):
             # Create customer user
-            customer = Customer(
+            customer_user = User(
                 username='customer',
                 email=customer_email,
                 password=hash_password('customer123'),
                 fs_uniquifier=str(uuid.uuid4()),
-                active=True,
-                role='customer'
+                active=True
             )
-            db.session.add(customer)
+            db.session.add(customer_user)
+            db.session.commit()
             
             # Add customer role to user
-            customer_user = user_datastore.find_user(email=customer_email)
             customer_role = user_datastore.find_role('customer')
             user_datastore.add_role_to_user(customer_user, customer_role)
+            
+            # Create customer profile with required fields
+            customer = Customer(
+                # user_id=customer_user.id,
+                customer_name='Default Customer',  # Add the required customer_name
+                phone='1234567890',                # Add default phone
+                address='123 Default Street',      # Add default address
+                pin_code='12345'                   # Add default pin_code
+            )
+            db.session.add(customer)
             db.session.commit()
 
 # @auth.route('/register', methods=['POST'])

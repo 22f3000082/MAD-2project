@@ -3,7 +3,7 @@ from flask import Flask, request, make_response, jsonify, send_from_directory   
 from jinja2 import Template  
 import redis   #caching
 from celery import Celery   #batch jobs
-from backend.application.models import db, User, Admin, ServiceProfessional, Customer, Service, ServiceRequest, Reviews, Role
+from backend.application.models import db, User, Admin, ServiceProfessional, Customer, Service, ServiceRequest, Reviews, Role, BlockedUsers
 from backend.application.database import db
 from backend.application.config import LocalDevelopmentConfig
 from backend.application.auth import init_security
@@ -58,6 +58,8 @@ def create_app():
 
     
     # Configure CORS - Updated configuration
+# CORS(app, supports_credentials=True)
+# CORS(app, supports_credentials=True)
     # CORS(app, supports_credentials=True)
     CORS(app, resources={
              r"/*": {

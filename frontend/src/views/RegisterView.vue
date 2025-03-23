@@ -52,7 +52,7 @@
                     <label class="form-label">Service Type</label>
                     <select class="form-select" v-model="formData.service_type" required>
                       <option value="">Select a service type</option>
-                      <option v-for="service in services" :key="service" :value="service">{{ service }}</option>
+                      <option v-for="service in service_types" :key="service" :value="service">{{ service }}</option>
                     </select>
                   </div>
 
@@ -109,16 +109,34 @@
 import { ref, reactive, onMounted } from 'vue';
 import axios from 'axios';
 import router from '@/router';
+import ServiceList from '../components/ServiceList.vue';
 
 export default {
   name: 'RegisterView',
+  data() {
+    return {
+      // Define service_types in data section to make it reactive
+      service_types: [
+        'AC Repair',
+        'Plumbing',
+        'Electrical',
+        'Carpentry',
+        'Painting',
+        'Cleaning',
+        'Pest Control',
+        'Appliance Repair',
+        'Moving Services',
+        'Gardening'
+      ]
+    };
+  },
   setup() {
     const loading = ref(false);
     const error = ref('');
     const services = ref([]);
     
     const formData = reactive({
-      name: '', username: '', email: '', password: '', role: '', service_type: '',
+      name: '', username: '', email: '', password: '', role: '', service_type: '', // Changed from service_types to service_type (singular)
       experience: '', description: '', phone: '', address: '', pin_code: '',
       documents: []
     });
@@ -126,28 +144,31 @@ export default {
     const errors = reactive({});
     
     const fetchServiceTypes = async () => {
+      // We're using hardcoded service types now, so this function is optional
+      // But keeping it as a reference in case you want to enable API fetching later
+      /* 
       let retries = 3;
       while (retries > 0) {
         try {
           const response = await axios.get('http://localhost:8080/api/service-types', {
             headers: {
-              'Authentication-Token': `Bearer ${localStorage.getItem('token')}`,
-              'Accept': 'application/json',
+              'Authentication-Token': 'token',
               'Content-Type': 'application/json'
             },
             withCredentials: true
           });
-          services.value = response.data;
+          this.service_types = response.data; // Note: this won't work in setup() - use different approach if needed
           break;
         } catch (err) {
           console.error('Error fetching services:', err);
-          error.value = 'Failed to load service types. Please refresh the page.';
+          error.value = 'Failed to load service types. Using default list.';
           retries--;
           if (retries > 0) {
             await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retrying
           }
         }
       }
+      */
     };
     
     const handleFileUpload = (event) => {
@@ -171,7 +192,7 @@ export default {
         
         // Role-specific validation
         if (formData.role === 'professional') {
-          if (!formData.service_type) errors.service_type = 'Service type is required';
+          if (!formData.service_type) errors.service_type = 'Service type is required'; // Updated from service_types to service_type
           if (!formData.experience) errors.experience = 'Experience is required';
         } else if (formData.role === 'customer') {
           if (!formData.phone) errors.phone = 'Phone is required';
@@ -226,7 +247,7 @@ export default {
     
     onMounted(fetchServiceTypes);
     
-    return { formData, errors, loading, error, services, handleSubmit, handleFileUpload };
+    return { formData, errors, loading, error, services, handleSubmit, handleFileUpload, fetchServiceTypes };
   }
 };
 </script>

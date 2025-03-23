@@ -100,6 +100,7 @@ router.beforeEach((to, from, next) => {
     if (user.role === 'admin') return next('/admin/dashboard')
     if (user.role === 'customer') return next('/customer/dashboard')
     if (user.role === 'professional') return next('/professional/dashboard')
+    
     return next('/')
   }
   next()

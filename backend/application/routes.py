@@ -1,6 +1,6 @@
 from wsgiref import headers
 from flask import Blueprint, jsonify, request,render_template, url_for, make_response
-from backend.application.models import db, User, ServiceProfessional, Service, Customer, Admin
+from backend.application.models import db, User, ServiceProfessional, Service, Customer, Admin, BlockedUsers, ServiceRequest, Reviews
 from backend.application.auth import admin_required, user_datastore, init_security
 from flask_security import auth_required, login_required, hash_password, roles_required, login_user, current_user
 from flask_security.utils import verify_password
@@ -25,16 +25,6 @@ admin = Blueprint('admin', __name__, url_prefix='/api/admin')
 def admin_home():
     return "Welcome to the admin dashboard!"
 
-# @admin.route('/users', methods=['GET'])
-# def handle_users_options_and_get():
-#     if request.method == 'OPTIONS':
-#         response = make_response()
-#         response.headers.add('Access-Control-Allow-Origin', 'http://localhost:8081')
-#         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authentication-Token')
-#         response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
-#         response.headers.add('Access-Control-Allow-Credentials', 'true')
-#         return response
-        
 #     # The GET part requires authentication
 #     return get_all_users()
 
@@ -44,7 +34,7 @@ def admin_home():
 def get_all_users():
     try:
         # Debugging - print all headers to see what's coming in
-        print("Request headers:", dict(request.headers))
+        # print("Request headers:", dict(request.headers))
         auth_token = request.headers.get('Authentication-Token')
         print(f"Auth token received: {auth_token[:10] if auth_token else 'None'}")
         
@@ -214,7 +204,7 @@ def admin_services():
                     'id': service.id,
                     'name': service.name,
                     'description': service.description,
-                    'basePrice': service.base_price,  # Changed to camelCase
+                    'base_price': service.base_price,  # Changed to camelCase
                     'timeRequired': service.time_required,  # Changed to camelCase
                     'category': service.category,
                     'is_active': service.is_active
@@ -288,19 +278,11 @@ def admin_services():
         traceback.print_exc()
         return jsonify({'error': 'Internal server error'}), 500
 
-@admin.route('/services/<int:service_id>', methods=['GET', 'PUT', 'DELETE', 'OPTIONS'])
+@admin.route('/services/<int:service_id>', methods=['GET', 'PUT', 'DELETE'])
 @auth_required('token')
 @admin_required
-def admin_service(service_id):
+def update_service(service_id):
     try:
-        if request.method == 'OPTIONS':
-            response = make_response()
-            response.headers.add('Access-Control-Allow-Origin', 'http://localhost:8081')
-            response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authentication-Token')
-            response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,DELETE,OPTIONS')
-            response.headers.add('Access-Control-Allow-Credentials', 'true')
-            return response
-
         service = Service.query.get_or_404(service_id)
         
         if request.method == 'GET':
@@ -341,40 +323,18 @@ def admin_service(service_id):
                 'category': service.category,
                 'is_active': service.is_active
             })
+            return response
         elif request.method == 'DELETE':
             db.session.delete(service)
             db.session.commit()
             response = jsonify({'message': 'Service deleted successfully'})
 
-        # Add CORS headers to response
-        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:8081')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authentication-Token')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,DELETE,OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
         return response
 
     except Exception as e:
         print(f"Error in admin_service: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-# # Add CORS headers to all responses
-# @admin.after_request
-# def add_cors_headers(response):
-#     response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8081'
-#     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-#     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authentication-Token'
-#     response.headers['Access-Control-Allow-Credentials'] = 'true'
-#     return response
-
-# # Handle OPTIONS requests
-# @admin.route('/users', methods=['OPTIONS'])
-# def handle_users_options():
-#     response = make_response()
-#     response.headers.add('Access-Control-Allow-Origin', 'http://localhost:8081')
-#     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authentication-Token')
-#     response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
-#     response.headers.add('Access-Control-Allow-Credentials', 'true')
-#     return response
 
 # Create a new blueprint for authentication
 auth = Blueprint('auth', __name__, url_prefix='/auth')
@@ -404,7 +364,7 @@ def register():
         if User.query.filter_by(username=data['username']).first():
             return jsonify({'error': 'Username already taken'}), 400
         
-        # Create base user data - exclude 'name' as it's not a field in User model
+        # Create base user data 
         user_data = {
             'username': data['username'],
             'email': data['email'],
@@ -465,7 +425,6 @@ def admin_dashboard():
     return render_template('admin_dashboard.html')
 
 @auth.route('/login', methods=['POST'])
-# Remove the auth_required decorator from login function - users can't authenticate before logging in
 def login():
     try:
         data = request.get_json()
@@ -548,7 +507,7 @@ def login():
                 # During development, secure should be False for localhost testing
                 secure=False,
                 samesite='Lax',  # Use 'Lax' instead of 'Strict' for development
-                max_age=86400  # 24 hours
+                max_age=3000 
             )
             
             return response
@@ -559,23 +518,15 @@ def login():
         print(f"Login error: {str(e)}")
         return jsonify({'message': 'An error occurred during login'}), 500 
 
+
+@auth.route('/logout', methods=['POST'])
+def logout():
+    response = jsonify({'message': 'Logged out successfully'})
+    response.set_cookie('session', '', expires=0)  # Clears the session cookie
+    return response
+
 # Create API blueprint
 api = Blueprint('api', __name__, url_prefix='/api')
-
-# @api.route('/services', methods=['GET'])
-# def get_services():
-#     try:
-#         services = Service.query.all()
-#         return jsonify([{
-#             'id': service.id,
-#             'name': service.name,
-#             'description': service.description,
-#             'base_price': service.base_price,
-#             'category': service.category
-#         } for service in services]), 200
-#     except Exception as e:
-#         print(f"Error fetching services: {str(e)}")
-#         return jsonify({'error': 'Failed to fetch services'}), 500
 
 @api.route('/health', methods=['GET'])
 def health_check():
@@ -588,9 +539,6 @@ def health_check():
 def get_service_types():
     if request.method == 'GET':
         response = make_response()
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authentication-Token')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
         return response
         
     try:
@@ -608,8 +556,6 @@ def get_service_types():
             'Gardening'
         ]
         response = jsonify(service_types)
-        # Add CORS headers to make it accessible from the frontend
-        response.headers.add('Access-Control-Allow-Origin', '*')
         return response
     except Exception as e:
         print(f"Error in get_service_types: {str(e)}")

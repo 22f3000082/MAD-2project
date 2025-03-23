@@ -192,6 +192,7 @@ export const serviceAPI = {
       console.error('Error fetching service types:', error);
       throw error;
     }
+    
   },
   
   // Enhanced getServices method with pagination and filtering
@@ -454,7 +455,7 @@ export const adminAPI = {
           id: service.id,
           name: service.name,
           description: service.description || '',
-          basePrice: service.basePrice || service.base_price,
+          base_price: service.base_price || service.basePrice,
           timeRequired: service.timeRequired || service.time_required,
           category: service.category || 'General',
           status: service.is_active !== false ? 'active' : 'inactive'
@@ -478,7 +479,7 @@ export const adminAPI = {
       const formattedData = {
         name: serviceData.name,
         description: serviceData.description,
-        base_price: Number(serviceData.basePrice),
+        base_price: Number(serviceData.base_price),
         time_required: Number(serviceData.timeRequired),
         category: serviceData.category || 'General'
       };
@@ -498,7 +499,7 @@ export const adminAPI = {
     }
   },
 
-  async updateService(serviceId, serviceData) {
+  async update_service(serviceId, serviceData) {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
