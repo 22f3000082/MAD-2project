@@ -58,6 +58,12 @@ const routes = [
     name: 'ProfessionalProfile',
     component: () => import('@/views/ProfessionalProfile.vue'),
     props: true
+  },
+  {
+    path: '/customer/services',
+    name: 'CustomerServices',
+    component: () => import('@/views/ServiceRequest.vue'),
+    meta: { requiresAuth: true, requiresCustomer: true }
   }
 ]
 

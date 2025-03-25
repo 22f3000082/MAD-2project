@@ -25,9 +25,6 @@ admin = Blueprint('admin', __name__, url_prefix='/api/admin')
 def admin_home():
     return "Welcome to the admin dashboard!"
 
-#     # The GET part requires authentication
-#     return get_all_users()
-
 @admin.route('/users', methods=['GET'])
 @auth_required('token')
 @admin_required
@@ -168,28 +165,6 @@ def unblock_user(user_id):
         print(f"Error unblocking user: {str(e)}")
         return jsonify({'error': f'Failed to unblock user: {str(e)}'}), 500
 
-# @admin.route('/api/admin/professionals/<int:prof_id>/approve', methods=['POST'])
-# @auth_required('token')
-# @admin_required
-# def approve_professional(prof_id):
-#     professional = ServiceProfessional.query.get_or_404(prof_id)
-#     professional.is_approved = True
-#     db.session.commit()
-#     return jsonify({'message': 'Professional approved successfully'})
-
-# @admin.route('/api/admin/users/<int:user_id>/toggle-block', methods=['POST'])
-# @auth_required('token')
-# @admin_required
-# def toggle_block_user(user_id):
-#     token = request.headers.get('Authentication-Token')
-#     print(f'Received Token: {token}')
-#     user = User.query.get_or_404(user_id)
-#     user.is_blocked = not user.is_blocked
-#     db.session.commit()
-#     return jsonify({
-#         'message': f'User {"blocked" if user.is_blocked else "unblocked"} successfully'
-#     })
-
 @admin.route('/services', methods=['GET', 'POST'])
 @auth_required('token')
 @admin_required
@@ -278,7 +253,7 @@ def admin_services():
         traceback.print_exc()
         return jsonify({'error': 'Internal server error'}), 500
 
-@admin.route('/services/<int:service_id>', methods=['GET', 'PUT', 'DELETE'])
+@admin.route('/services/<int:service_id>', methods=['GET', 'PUT'])
 @auth_required('token')
 @admin_required
 def update_service(service_id):
@@ -295,6 +270,7 @@ def update_service(service_id):
                 'category': service.category,
                 'is_active': service.is_active
             })
+            return response  # Added return statement here
         elif request.method == 'PUT':
             data = request.get_json()
             if not data:
@@ -324,17 +300,128 @@ def update_service(service_id):
                 'is_active': service.is_active
             })
             return response
-        elif request.method == 'DELETE':
-            db.session.delete(service)
-            db.session.commit()
-            response = jsonify({'message': 'Service deleted successfully'})
-
-        return response
+        else:
+            return jsonify({'error': 'Method not allowed'}), 405
 
     except Exception as e:
         print(f"Error in admin_service: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@admin.route('/services/<int:service_id>', methods=['DELETE'])
+@auth_required('token')
+@admin_required
+def delete_service(service_id):
+    try:
+        print(f"Attempting to delete service {service_id}")
+        service = Service.query.get_or_404(service_id)
+        
+        # Check for existing requests
+        existing_requests = ServiceRequest.query.filter_by(service_id=service_id).first()
+        
+        if existing_requests:
+            # Mark as inactive instead of deleting
+            service.is_active = False
+            db.session.commit()
+            return jsonify({
+                'message': f'Service {service_id} marked as inactive (has existing requests)',
+                'status': 'deactivated'
+            })
+        
+        # No existing requests - safe to delete
+        db.session.delete(service)
+        db.session.commit()
+        
+        print(f"Service {service_id} deleted successfully")
+        return jsonify({
+            'message': f'Service {service_id} deleted successfully',
+            'status': 'deleted'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error deleting service {service_id}: {str(e)}")
+        return jsonify({
+            'error': 'Failed to delete service',
+            'message': str(e)
+        }), 500
+
+@admin.route('/requests', methods=['GET'])
+@auth_required('token')
+@admin_required
+def get_service_requests():
+    try:
+        # Get all service requests with optional status filter
+        status = request.args.get('status')
+        
+        # Base query
+        query = ServiceRequest.query
+        
+        # Apply status filter if provided
+        if status:
+            query = query.filter_by(status=status)
+            
+        # Get all matching requests
+        service_requests = query.all()
+        
+        # Prepare response data
+        result = []
+        for req in service_requests:
+            # Get service details
+            service = Service.query.get(req.service_id)
+            # Get customer details
+            customer = Customer.query.get(req.customer_id)
+            # Get professional details if assigned
+            professional = None
+            if req.professional_id:
+                professional = ServiceProfessional.query.get(req.professional_id)
+            # Get review if any
+            review = Reviews.query.filter_by(service_request_id=req.id).first()
+            
+            request_data = {
+                'id': req.id,
+                'status': req.status,
+                'pin_code': req.pin_code,
+                'created_at': req.created_at.isoformat() if req.created_at else None,
+                'accepted_at': req.accepted_at.isoformat() if req.accepted_at else None,
+                'completed_at': req.completed_at.isoformat() if req.completed_at else None,
+                'closed_at': req.closed_at.isoformat() if req.closed_at else None,
+                'special_instructions': req.special_instructions,
+                'final_amount': req.final_amount,
+                'service': {
+                    'id': service.id,
+                    'name': service.name,
+                    'base_price': service.base_price,
+                    'description': service.description
+                } if service else None,
+                'customer': {
+                    'id': customer.id,
+                    'customer_name': customer.customer_name,
+                    'phone': customer.phone,
+                    'address': customer.address
+                } if customer else None,
+                'professional': {
+                    'id': professional.id,
+                    'professional_name': professional.professional_name,
+                    'service_type': professional.service_type,
+                    'experience': professional.experience
+                } if professional else None
+            }
+            
+            # Add review data if available
+            if review:
+                request_data['review'] = {
+                    'id': review.id,
+                    'rating': review.rating,
+                    'remarks': review.remarks,
+                    'date_created': review.date_created.isoformat() if review.date_created else None
+                }
+                
+            result.append(request_data)
+            
+        return jsonify(result)
+    except Exception as e:
+        print(f"Error fetching service requests: {str(e)}")
+        return jsonify({'error': 'Failed to fetch service requests'}), 500
 
 # Create a new blueprint for authentication
 auth = Blueprint('auth', __name__, url_prefix='/auth')
@@ -530,36 +617,101 @@ api = Blueprint('api', __name__, url_prefix='/api')
 
 @api.route('/health', methods=['GET'])
 def health_check():
-    return jsonify({
-        'status': 'healthy',
-        'message': 'Server is running'
-    })
+    try:
+        # Check database connectivity
+        db_status = True
+        try:
+            db.session.execute('SELECT 1')
+        except Exception as e:
+            db_status = False
+            print(f"Database connection error in health check: {str(e)}")
+            
+        return jsonify({
+            'status': 'healthy' if db_status else 'degraded',
+            'database': 'connected' if db_status else 'disconnected',
+            'message': 'Server is running',
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        print(f"Health check error: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Server error: {str(e)}',
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 @api.route('/service-types', methods=['GET'])
 def get_service_types():
-    if request.method == 'GET':
-        response = make_response()
-        return response
-        
     try:
-        # Hardcoded list of service types
-        service_types = [
-            'AC Repair',
-            'Plumbing',
-            'Electrical',
-            'Carpentry',
-            'Painting',
-            'Cleaning',
-            'Pest Control',
-            'Appliance Repair',
-            'Moving Services',
-            'Gardening'
+        # Define default categories that should always be available
+        default_categories = [
+            'AC Repair', 'Plumbing', 'Electrical', 'Carpentry', 'Painting',
+            'Cleaning', 'Pest Control', 'Appliance Repair', 'Moving Services', 'Gardening'
         ]
-        response = jsonify(service_types)
-        return response
+        
+        # Log the defaults for debugging
+        print(f"Default categories: {default_categories}")
+        
+        # Query the database for unique categories from the Service table
+        categories = db.session.query(Service.category).distinct().all()
+        
+        # Extract the category strings from the result tuples
+        db_categories = [category[0] for category in categories if category[0]]
+        print(f"Categories from database: {db_categories}")
+        
+        # Merge database categories with default categories (no duplicates)
+        service_types = list(set(db_categories + default_categories))
+        
+        # Sort alphabetically for consistent display
+        service_types.sort()
+        
+        print(f"Returning {len(service_types)} service types: {service_types}")
+        return jsonify(service_types)
     except Exception as e:
         print(f"Error in get_service_types: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({
+            'error': 'Internal server error', 
+            'details': str(e),
+            'fallback_categories': [
+                'AC Repair', 'Plumbing', 'Electrical', 'Carpentry', 'Painting',
+                'Cleaning', 'Pest Control', 'Appliance Repair', 'Moving Services', 'Gardening'
+            ]
+        }), 500
+
+# Add a debug endpoint to inspect service categories
+@api.route('/debug/service-types', methods=['GET'])
+def debug_service_types():
+    """Debug endpoint to view all service categories in the system"""
+    try:
+        # Get all services
+        services = Service.query.all()
+        
+        # Get distinct categories from database
+        db_categories = db.session.query(Service.category).distinct().all()
+        db_categories = [category[0] for category in categories if category[0]]
+        
+        # Default categories
+        default_categories = [
+            'AC Repair', 'Plumbing', 'Electrical', 'Carpentry', 'Painting',
+            'Cleaning', 'Pest Control', 'Appliance Repair', 'Moving Services', 'Gardening'
+        ]
+        
+        return jsonify({
+            'total_services': len(services),
+            'unique_categories_in_db': db_categories,
+            'default_categories': default_categories,
+            'all_services': [
+                {
+                    'id': service.id,
+                    'name': service.name,
+                    'category': service.category,
+                    'is_active': service.is_active
+                }
+                for service in services
+            ]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # Add these professional endpoints to the existing API blueprint
 @api.route('/professional/assignments', methods=['GET'])
@@ -812,20 +964,497 @@ def confirm_location_exit(request_id):
         db.session.rollback()
         print(f"Error confirming location exit: {str(e)}")
         return jsonify({'error': 'Failed to confirm location exit'}), 500
-    
+
+@api.route('/professional/available-requests', methods=['GET'])
+@auth_required('token')
+def get_available_service_requests():
+    try:
+        # Ensure the current user is a professional
+        if current_user.role != 'professional':
+            return jsonify({'error': 'Unauthorized access'}), 403
+            
+        # Get the professional record to check service type
+        professional = ServiceProfessional.query.get(current_user.id)
+        
+        if not professional:
+            return jsonify({'error': 'Professional profile not found'}), 404
+            
+        # Get service type of the professional
+        service_type = professional.service_type
+        
+        if not service_type:
+            return jsonify({'error': 'No service type defined for this professional'}), 400
+            
+        # Add debugging information
+        print(f"Looking for available requests matching service type: {service_type}")
+        
+        # FLEXIBLE MATCHING: Find services that match the professional's specialty
+        matching_services = Service.query.filter(
+            # Changed from exact matching to pattern matching
+            Service.category.ilike(f"%{service_type}%"), 
+            Service.is_active == True
+        ).all()
+        
+        # Debug service matching
+        print(f"Found {len(matching_services)} matching services")
+        for svc in matching_services:
+            print(f"- Service ID: {svc.id}, Name: {svc.name}")
+        
+        if not matching_services:
+            # Try even broader search - get all active services
+            print("No service matches at all, showing all active services")
+            matching_services = Service.query.filter_by(is_active=True).all()
+            print(f"Found {len(matching_services)} active services total")
+        
+        # Get IDs of matching services
+        service_ids = [service.id for service in matching_services]
+        
+        # Debug - List all service requests in the system
+        all_pending = ServiceRequest.query.filter_by(status='pending').all()
+        print(f"Total pending requests in system: {len(all_pending)}")
+        
+        # Find pending requests for these services that don't have a professional assigned yet
+        pending_requests = ServiceRequest.query.filter(
+            ServiceRequest.service_id.in_(service_ids) if service_ids else True,
+            ServiceRequest.status == 'pending',
+            ServiceRequest.professional_id.is_(None)
+        ).all()
+        
+        print(f"Found {len(pending_requests)} matching pending requests")
+        
+        # Prepare response data
+        result = []
+        for req in pending_requests:
+            # Get service details
+            service = Service.query.get(req.service_id)
+            # Get customer details
+            customer = Customer.query.get(req.customer_id)
+            
+            # Don't include customer's personal information at this stage
+            # Only include PIN code for location matching
+            request_data = {
+                'id': req.id,
+                'status': req.status,
+                'pin_code': req.pin_code,
+                'created_at': req.created_at.isoformat() if req.created_at else None,
+                'special_instructions': req.special_instructions,
+                'service': {
+                    'id': service.id,
+                    'name': service.name,
+                    'base_price': service.base_price,
+                    'description': service.description,
+                    'category': service.category
+                } if service else None,
+                'customer': {
+                    'customer_name': 'Customer'  # Omit personal details until accepted
+                }
+            }
+            
+            result.append(request_data)
+            
+        return jsonify(result)
+    except Exception as e:
+        print(f"Error fetching available service requests: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to fetch available service requests'}), 500
+
+# Add a new debug endpoint to see ALL pending requests
+@api.route('/professional/all-pending-requests', methods=['GET'])
+@auth_required('token')
+def get_all_pending_requests():
+    try:
+        # Only professionals can access this
+        if current_user.role != 'professional':
+            return jsonify({'error': 'Unauthorized access'}), 403
+            
+        # Get ALL pending requests regardless of service type
+        all_pending = ServiceRequest.query.filter_by(status='pending').all()
+        
+        result = []
+        for req in all_pending:
+            # Get service details
+            service = Service.query.get(req.service_id)
+            # Get customer details
+            customer = Customer.query.get(req.customer_id)
+            
+            request_data = {
+                'id': req.id,
+                'status': req.status,
+                'pin_code': req.pin_code,
+                'created_at': req.created_at.isoformat() if req.created_at else None,
+                'special_instructions': req.special_instructions,
+                'service_id': req.service_id,
+                'customer_id': req.customer_id,
+                'professional_id': req.professional_id,
+                'service_info': {
+                    'name': service.name if service else 'Unknown',
+                    'category': service.category if service else 'Unknown'
+                },
+                'customer_info': {
+                    'name': customer.customer_name if customer else 'Unknown'
+                }
+            }
+            
+            result.append(request_data)
+            
+        return jsonify({
+            'total_count': len(result),
+            'requests': result
+        })
+    except Exception as e:
+        print(f"Error in get_all_pending_requests: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 #cust is the shortform for customer
 
 cust = Blueprint('cust', __name__, url_prefix='/api/cust')
 
-@cust.route('/services', methods=['GET','POST'])
+# Customer routes
+@api.route('/customer/requests', methods=['POST'])
 @auth_required('token')
+def create_service_request():
+    try:
+        # Ensure the current user is a customer
+        if current_user.role != 'customer':
+            return jsonify({'error': 'Only customers can create service requests'}), 403
+            
+        # Get request data
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        # Validate required fields
+        if not data.get('pin_code'):
+            return jsonify({'error': 'PIN code is required'}), 400
+            
+        # Get service ID (either directly provided or look up by category)
+        service_id = data.get('service_id')
+        category = data.get('category')
+        
+        print(f"Received request: service_id={service_id}, category={category}, pin_code={data.get('pin_code')}")
+        
+        # If no service_id but category is provided, find the first active service in that category
+        if not service_id and category:
+            # Add debug logging
+            print(f"Looking up service by category: {category}")
+            
+            # Create a default service if none exists
+            service = Service.query.filter_by(category=category, is_active=True).first()
+            
+            if not service:
+                print(f"No active service found for category '{category}', creating one...")
+                # Create a default service for this category if none exists
+                try:
+                    # Get admin user for the service creation
+                    admin = User.query.filter_by(role='admin').first()
+                    admin_id = None
+                    if admin:
+                        admin_record = Admin.query.get(admin.id)
+                        if not admin_record:
+                            admin_record = Admin(id=admin.id)
+                            db.session.add(admin_record)
+                            db.session.flush()
+                        admin_id = admin_record.id
+                    
+                    # Create a new service
+                    service = Service(
+                        name=f"{category} Service",
+                        description=f"Standard {category} service",
+                        base_price=500,  # Default price
+                        time_required=60,  # Default time (1 hour)
+                        category=category,
+                        is_active=True,
+                        created_by_admin_id=admin_id
+                    )
+                    db.session.add(service)
+                    db.session.flush()
+                    print(f"Created new service: {service.name} (ID: {service.id})")
+                except Exception as e:
+                    print(f"Failed to create service: {str(e)}")
+                    return jsonify({'error': f'Cannot create service for category: {category}. Please contact support.'}), 500
+            
+            if service:
+                service_id = service.id
+                print(f"Found/created service: {service.name} (ID: {service_id}) in category {category}")
+            else:
+                return jsonify({'error': f'No service found in category: {category}. Please try a different category or contact support.'}), 404
+                
+        if not service_id:
+            return jsonify({'error': 'Service ID or category is required'}), 400
+        
+        # Create service request
+        service_request = ServiceRequest(
+            customer_id=current_user.id,
+            service_id=service_id,
+            pin_code=data.get('pin_code'),
+            special_instructions=data.get('special_instructions', ''),
+            status='pending',
+            created_at=db.func.current_timestamp()
+        )
+        
+        db.session.add(service_request)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Service request created successfully',
+            'request_id': service_request.id,
+            'status': service_request.status
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creating service request: {str(e)}")
+        return jsonify({'error': 'Failed to create service request'}), 500
 
+@api.route('/customer/requests', methods=['GET'])
+@auth_required('token')
+def get_customer_requests():
+    try:
+        # Ensure the current user is a customer
+        if current_user.role != 'customer':
+            return jsonify({'error': 'Unauthorized access'}), 403
+            
+        # Get all requests for this customer
+        requests = ServiceRequest.query.filter_by(customer_id=current_user.id).all()
+        
+        # Prepare response data
+        result = []
+        for req in requests:
+            # Get service details
+            service = Service.query.get(req.service_id)
+            
+            # Get professional details if assigned
+            professional = None
+            if req.professional_id:
+                professional = ServiceProfessional.query.get(req.professional_id)
+                
+            # Get review if any
+            review = Reviews.query.filter_by(service_request_id=req.id).first()
+            
+            request_data = {
+                'id': req.id,
+                'status': req.status,
+                'pin_code': req.pin_code,
+                'created_at': req.created_at.isoformat() if req.created_at else None,
+                'accepted_at': req.accepted_at.isoformat() if req.accepted_at else None,
+                'completed_at': req.completed_at.isoformat() if req.completed_at else None,
+                'closed_at': req.closed_at.isoformat() if req.closed_at else None,
+                'special_instructions': req.special_instructions,
+                'final_amount': req.final_amount,
+                'service': {
+                    'id': service.id,
+                    'name': service.name,
+                    'base_price': service.base_price,
+                    'description': service.description
+                } if service else None,
+                'professional': {
+                    'id': professional.id,
+                    'professional_name': professional.professional_name,
+                    'service_type': professional.service_type,
+                    'experience': professional.experience
+                } if professional else None,
+                'has_review': review is not None
+            }
+            
+            result.append(request_data)
+            
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"Error fetching customer requests: {str(e)}")
+        return jsonify({'error': 'Failed to fetch customer requests'}), 500
 
+@api.route('/customer/services', methods=['GET'])
+def get_available_services():
+    try:
+        # Get all active services
+        services = Service.query.filter_by(is_active=True).all()
+        
+        result = []
+        for service in services:
+            result.append({
+                'id': service.id,
+                'name': service.name,
+                'description': service.description,
+                'base_price': service.base_price,
+                'time_required': service.time_required,
+                'category': service.category,
+                'is_active': service.is_active
+            })
+            
+        return jsonify(result)
+    except Exception as e:
+        print(f"Error fetching services: {str(e)}")
+        return jsonify({'error': 'Failed to fetch services'}), 500
 
-# Register blueprints
-def init_app(app):
-    app.register_blueprint(main)
-    app.register_blueprint(admin)
-    app.register_blueprint(auth)
-    app.register_blueprint(api)
-    return app
+@api.route('/professional/profile', methods=['GET', 'PUT'])
+@auth_required('token')
+def professional_profile():
+    try:
+        # Ensure the current user is a professional
+        if current_user.role != 'professional':
+            return jsonify({'error': 'Unauthorized access'}), 403
+            
+        # Get the professional's profile
+        professional = ServiceProfessional.query.get(current_user.id)
+        
+        if not professional:
+            return jsonify({'error': 'Professional profile not found'}), 404
+        
+        if request.method == 'GET':
+            # Return profile data
+            result = {
+                'id': professional.id,
+                'professional_name': professional.professional_name,
+                'service_type': professional.service_type,
+                'description': professional.description,
+                'experience': professional.experience,
+                'is_approved': professional.is_approved,
+                'approval_date': professional.approval_date.isoformat() if professional.approval_date else None,
+                'average_rating': professional.average_rating,
+                'total_reviews': professional.total_reviews,
+                'email': professional.email,
+                'phone': professional.phone
+            }
+            
+            return jsonify(result)
+        elif request.method == 'PUT':
+            # Update profile data
+            data = request.get_json()
+            
+            if data:
+                if 'description' in data:
+                    professional.description = data['description']
+                if 'phone' in data:
+                    professional.phone = data['phone']
+                if 'experience' in data and data['experience'] is not None:
+                    try:
+                        professional.experience = int(data['experience'])
+                    except (ValueError, TypeError):
+                        return jsonify({'error': 'Experience must be a number'}), 400
+                
+                db.session.commit()
+                
+                # Return updated profile data
+                return jsonify({
+                    'message': 'Profile updated successfully',
+                    'id': professional.id,
+                    'professional_name': professional.professional_name,
+                    'description': professional.description,
+                    'phone': professional.phone,
+                    'experience': professional.experience
+                })
+            else:
+                return jsonify({'error': 'No data provided'}), 400
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in professional_profile: {str(e)}")
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+@api.route('/debug/professional/assignments', methods=['GET'])
+@auth_required('token')
+def debug_professional_assignments():
+    """Debug endpoint to check response format for professional assignments"""
+    try:
+        # Ensure the current user is a professional
+        if current_user.role != 'professional':
+            return jsonify({'error': 'Unauthorized access'}), 403
+            
+        # Get all requests for this professional
+        service_requests = ServiceRequest.query.filter_by(professional_id=current_user.id).all()
+        
+        # Prepare response data
+        result = []
+        for req in service_requests:
+            # Get service details
+            service = Service.query.get(req.service_id)
+            # Get customer details
+            customer = Customer.query.get(req.customer_id)
+            
+            # Create the request data with consistent format
+            request_data = {
+                'id': req.id,
+                'status': req.status,
+                'pin_code': req.pin_code,
+                'created_at': req.created_at.isoformat() if req.created_at else None,
+                'accepted_at': req.accepted_at.isoformat() if req.accepted_at else None,
+                'completed_at': req.completed_at.isoformat() if req.completed_at else None,
+                'closed_at': req.closed_at.isoformat() if req.closed_at else None,
+                'special_instructions': req.special_instructions,
+                'final_amount': req.final_amount if req.final_amount else 0,
+                'service': {
+                    'id': service.id,
+                    'name': service.name,
+                    'base_price': service.base_price,
+                    'description': service.description
+                } if service else None,
+                'customer': {
+                    'id': customer.id,
+                    'customer_name': customer.customer_name,
+                    'phone': customer.phone,
+                    'address': customer.address
+                } if customer else None
+            }
+            
+            result.append(request_data)
+            
+        # Also log the result for server-side debugging
+        print(f"Debug professional assignments: Found {len(result)} assignments")
+        
+        return jsonify({
+            'count': len(result),
+            'data': result
+        })
+    except Exception as e:
+        print(f"Debug error in assignments: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# Add this new endpoint for rejection reasons
+@api.route('/professional/requests/<int:request_id>/reject-reason', methods=['POST', 'OPTIONS'])
+@auth_required('token')
+def add_rejection_reason(request_id):
+    if request.method == 'OPTIONS':
+        # Handle preflight request
+        response = make_response()
+        response.headers.add('Access-Control-Allow-Methods', 'POST')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authentication-Token')
+        return response
+        
+    try:
+        # Ensure the current user is a professional
+        if current_user.role != 'professional':
+            return jsonify({'error': 'Unauthorized access'}), 403
+            
+        # Get the service request
+        service_request = ServiceRequest.query.get_or_404(request_id)
+        
+        # Check if this is a valid request for the professional
+        if service_request.professional_id is not None and service_request.professional_id != current_user.id:
+            return jsonify({'error': 'This request is not assigned to you'}), 403
+            
+        # Get the rejection reason from the request data
+        data = request.get_json()
+        if not data or 'reason' not in data:
+            return jsonify({'error': 'Rejection reason is required'}), 400
+            
+        # Update the request with the rejection reason
+        service_request.rejection_reason = data['reason']
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Rejection reason added successfully',
+            'id': service_request.id,
+            'status': service_request.status,
+            'rejection_reason': service_request.rejection_reason
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error adding rejection reason: {str(e)}")
+        return jsonify({'error': f'Failed to add rejection reason: {str(e)}'}), 500
+
+# Define the Customer blueprint once - but use the API blueprint for consistency
+cust = Blueprint('cust', __name__, url_prefix='/api/cust')
+# We're not actually using the cust blueprint currently, keeping it for future use
+
+# Customer routes are properly defined in the api blueprint - NO DUPLICATES BELOW THIS LINE

@@ -17,11 +17,5 @@ class LocalDevelopmentConfig(Config):
     SECRET_KEY = "hiddenkey"               #secret key for the application
     WTF_CSRF_ENABLED = False                #cross-site request forgery protection
     SECURITY_TOKEN_AUTHENTICATION_HEADER = 'Authentication-Token'
-    
 
-    # cache specific
-    # CACHE_TYPE =  "RedisCache"
-    # CACHE_DEFAULT_TIMEOUT = 30
-    # CACHE_REDIS_PORT = 6379
 
-    # WTF_CSRF_ENABLED = False

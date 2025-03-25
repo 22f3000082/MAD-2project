@@ -144,31 +144,6 @@ export default {
     const errors = reactive({});
     
     const fetchServiceTypes = async () => {
-      // We're using hardcoded service types now, so this function is optional
-      // But keeping it as a reference in case you want to enable API fetching later
-      /* 
-      let retries = 3;
-      while (retries > 0) {
-        try {
-          const response = await axios.get('http://localhost:8080/api/service-types', {
-            headers: {
-              'Authentication-Token': 'token',
-              'Content-Type': 'application/json'
-            },
-            withCredentials: true
-          });
-          this.service_types = response.data; // Note: this won't work in setup() - use different approach if needed
-          break;
-        } catch (err) {
-          console.error('Error fetching services:', err);
-          error.value = 'Failed to load service types. Using default list.';
-          retries--;
-          if (retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retrying
-          }
-        }
-      }
-      */
     };
     
     const handleFileUpload = (event) => {

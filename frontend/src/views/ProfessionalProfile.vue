@@ -25,83 +25,143 @@
                 <img src="https://via.placeholder.com/150" alt="Professional" class="rounded-circle img-thumbnail">
               </div>
               <h3>{{ profile.professional_name }}</h3>
-              <div class="d-flex justify-content-center mb-3">
-                <div class="rating">
-                  <i v-for="n in 5" :key="n" class="fas fa-star" 
-                    :class="n <= profile.average_rating ? 'text-warning' : 'text-muted'"></i>
-                  <span class="ms-1">{{ profile.average_rating }}/5 ({{ profile.total_reviews }} reviews)</span>
-                </div>
+              
+              <!-- Edit Profile Section -->
+              <div v-if="editMode">
+                <form @submit.prevent="updateProfile">
+                  <div class="form-group mb-3">
+                    <label>Description</label>
+                    <textarea 
+                      v-model="form.description" 
+                      class="form-control" 
+                      rows="3"
+                    ></textarea>
+                  </div>
+
+                  <div class="form-group mb-3">
+                    <label>Phone</label>
+                    <input 
+                      v-model="form.phone" 
+                      type="tel" 
+                      class="form-control"
+                    >
+                  </div>
+
+                  <div class="form-group mb-3">
+                    <label>Experience (years)</label>
+                    <input 
+                      v-model="form.experience" 
+                      type="number" 
+                      class="form-control"
+                      min="0"
+                    >
+                  </div>
+
+                  <div class="btn-group w-100">
+                    <button 
+                      type="submit" 
+                      class="btn btn-primary"
+                      :disabled="loading"
+                    >
+                      Save Changes
+                    </button>
+                    <button 
+                      type="button" 
+                      class="btn btn-secondary"
+                      @click="cancelEdit"
+                      :disabled="loading"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
               </div>
-              <span class="badge bg-primary rounded-pill mb-3">{{ profile.service_type }}</span>
-              <p class="text-muted">{{ profile.description || 'No description available.' }}</p>
-              <hr>
-              <div class="text-start">
-                <p class="mb-2"><strong><i class="fas fa-briefcase me-2"></i>Experience:</strong> {{ profile.experience }} years</p>
-                <p class="mb-2"><strong><i class="fas fa-calendar-check me-2"></i>Joined:</strong> {{ formatDate(profile.date_created) }}</p>
-                <p class="mb-0"><strong><i class="fas fa-check-circle me-2"></i>Status:</strong>
-                  <span :class="profile.is_available ? 'text-success' : 'text-secondary'">
-                    {{ profile.is_available ? 'Available for Work' : 'Currently Unavailable' }}
-                  </span>
-                </p>
+
+              <!-- View Profile Section -->
+              <div v-else>
+                <p class="text-muted">{{ profile.description || 'No description available.' }}</p>
+                <hr>
+                <div class="text-start">
+                  <p class="mb-2"><strong><i class="fas fa-briefcase me-2"></i>Experience:</strong> {{ profile.experience }} years</p>
+                  <p class="mb-2"><strong><i class="fas fa-phone me-2"></i>Phone:</strong> {{ profile.phone || 'Not provided' }}</p>
+                  <p class="mb-2"><strong><i class="fas fa-calendar-check me-2"></i>Joined:</strong> {{ formatDate(profile.date_created) }}</p>
+                  <button 
+                    @click="editMode = true" 
+                    class="btn btn-primary mt-3 w-100"
+                  >
+                    Edit Profile
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
-        
+
         <!-- Reviews Section -->
         <div class="col-lg-8">
           <div class="card">
             <div class="card-header bg-white">
-              <h4 class="mb-0">Customer Reviews</h4>
+              <h4 class="mb-0">Reviews</h4>
             </div>
-            <div class="card-body p-0">
-              <div v-if="reviews.length === 0" class="text-center py-5">
-                <i class="fas fa-star fa-3x text-muted mb-3"></i>
-                <h5>No Reviews Yet</h5>
-                <p class="text-muted">This professional hasn't received any reviews yet.</p>
+            <div class="card-body">
+              <!-- Reviews content here -->
+              <div v-if="!profile.reviews || profile.reviews.length === 0" class="text-center py-4">
+                <p class="text-muted">No reviews yet</p>
               </div>
-              
-              <div v-else class="list-group list-group-flush">
-                <div v-for="review in reviews" :key="review.id" class="list-group-item p-3">
-                  <div class="d-flex justify-content-between mb-2">
-                    <div>
-                      <h5 class="mb-0">{{ review.customer_name }}</h5>
-                      <small class="text-muted">{{ formatDate(review.date_created) }}</small>
+              <div v-else>
+                <!-- Reviews list here -->
+                <div class="list-group list-group-flush">
+                  <div v-for="review in profile.reviews" :key="review.id" class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                      <div>
+                        <h6 class="mb-0">{{ review.customer_name || 'Customer' }}</h6>
+                        <small class="text-muted">{{ formatDate(review.date_created) }}</small>
+                      </div>
+                      <div class="rating">
+                        <i v-for="i in 5" :key="i" class="fas fa-star" 
+                          :class="i <= review.rating ? 'text-warning' : 'text-muted'"></i>
+                      </div>
                     </div>
-                    <div class="rating">
-                      <i v-for="n in 5" :key="n" class="fas fa-star" 
-                        :class="n <= review.rating ? 'text-warning' : 'text-muted'"></i>
-                    </div>
+                    <p class="mb-0">{{ review.remarks }}</p>
+                    <small class="text-muted">Service: {{ review.service_name }}</small>
                   </div>
-                  <p class="mb-1">{{ review.remarks }}</p>
-                  <small class="text-muted">Service: {{ review.service_name }}</small>
                 </div>
               </div>
             </div>
           </div>
           
-          <!-- Availability Calendar (for demonstration) -->
+          <!-- Service Statistics -->
           <div class="card mt-4">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-              <h4 class="mb-0">Availability</h4>
-              <div>
-                <button class="btn btn-outline-primary btn-sm" @click="requestService" :disabled="!profile.is_available">
-                  <i class="fas fa-calendar-plus me-1"></i> Request Service
-                </button>
-              </div>
+            <div class="card-header bg-white">
+              <h4 class="mb-0">Service Statistics</h4>
             </div>
             <div class="card-body">
-              <div v-if="!profile.is_available" class="alert alert-warning">
-                <i class="fas fa-exclamation-circle me-2"></i>
-                This professional is currently unavailable for new service requests.
-              </div>
-              
-              <!-- Simple weekly availability display -->
-              <div class="availability-grid">
-                <div v-for="day in availabilityCalendar" :key="day.name" class="day-column">
-                  <div class="day-header">{{ day.name }}</div>
-                  <div class="day-availability" :class="{ 'is-available': day.available }">
-                    {{ day.available ? 'Available' : 'Unavailable' }}
+              <div class="row g-4">
+                <div class="col-sm-4">
+                  <div class="stat-card bg-light p-3 text-center rounded">
+                    <div class="stat-icon mb-2">
+                      <i class="fas fa-check-circle fa-2x text-success"></i>
+                    </div>
+                    <h5>{{ profile.completed_services || 0 }}</h5>
+                    <p class="text-muted mb-0">Services Completed</p>
+                  </div>
+                </div>
+                <div class="col-sm-4">
+                  <div class="stat-card bg-light p-3 text-center rounded">
+                    <div class="stat-icon mb-2">
+                      <i class="fas fa-star fa-2x text-warning"></i>
+                    </div>
+                    <h5>{{ profile.average_rating?.toFixed(1) || '0.0' }}</h5>
+                    <p class="text-muted mb-0">Average Rating</p>
+                  </div>
+                </div>
+                <div class="col-sm-4">
+                  <div class="stat-card bg-light p-3 text-center rounded">
+                    <div class="stat-icon mb-2">
+                      <i class="fas fa-users fa-2x text-primary"></i>
+                    </div>
+                    <h5>{{ profile.total_customers || 0 }}</h5>
+                    <p class="text-muted mb-0">Customers Served</p>
                   </div>
                 </div>
               </div>
@@ -114,81 +174,94 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import axios from 'axios';
+import { professionalAPI } from '@/services/api'
 
 export default {
   name: 'ProfessionalProfile',
-  setup() {
-    const route = useRoute();
-    const router = useRouter();
-    const professionalId = route.params.id;
-    
-    const profile = ref({});
-    const reviews = ref([]);
-    const loading = ref(true);
-    const error = ref(null);
-    
-    // Sample availability calendar
-    const availabilityCalendar = ref([
-      { name: 'Monday', available: true },
-      { name: 'Tuesday', available: true },
-      { name: 'Wednesday', available: true },
-      { name: 'Thursday', available: true },
-      { name: 'Friday', available: true },
-      { name: 'Saturday', available: false },
-      { name: 'Sunday', available: false }
-    ]);
-    
-    const fetchProfileData = async () => {
-      loading.value = true;
-      try {
-        const response = await axios.get(`/api/professionals/${professionalId}`);
-        profile.value = response.data;
-        
-        // Fetch reviews for this professional
-        const reviewsResponse = await axios.get(`/api/professionals/${professionalId}/reviews`);
-        reviews.value = reviewsResponse.data;
-      } catch (err) {
-        console.error('Error fetching professional profile:', err);
-        error.value = 'Failed to load professional profile. Please try again.';
-      } finally {
-        loading.value = false;
-      }
-    };
-    
-    const requestService = () => {
-      // Navigate to service request form with this professional pre-selected
-      router.push({
-        path: '/service-request',
-        query: { professional: professionalId }
-      });
-    };
-    
-    const formatDate = (dateString) => {
-      if (!dateString) return 'N/A';
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric'
-      });
-    };
-    
-    onMounted(fetchProfileData);
-    
+  
+  data() {
     return {
-      profile,
-      reviews,
-      loading,
-      error,
-      availabilityCalendar,
-      requestService,
-      formatDate
-    };
+      profile: null,
+      loading: false,
+      error: null,
+      editMode: false,
+      form: {
+        description: '',
+        phone: '',
+        experience: '',
+        availability: []
+      }
+    }
+  },
+
+  created() {
+    this.fetchProfile()
+  },
+
+  methods: {
+    async fetchProfile() {
+      this.loading = true
+      try {
+        // Fetch profile data
+        const data = await professionalAPI.getProfile()
+        this.profile = data
+        
+        // Fetch reviews if not included in profile data
+        if (!this.profile.reviews) {
+          const reviews = await professionalAPI.getReviews()
+          this.profile.reviews = reviews || []
+        }
+        
+        this.form = {
+          description: data.description || '',
+          phone: data.phone || '',
+          experience: data.experience || '',
+          availability: data.availability || []
+        }
+      } catch (err) {
+        this.error = err.message || 'Failed to load profile'
+        console.error('Error fetching profile:', err)
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async updateProfile() {
+      this.loading = true
+      try {
+        await professionalAPI.updateProfile(this.form)
+        this.profile = { ...this.profile, ...this.form }
+        this.editMode = false
+        this.$toast?.success('Profile updated successfully') || alert('Profile updated successfully')
+      } catch (err) {
+        this.$toast?.error(err.message || 'Failed to update profile') || alert('Failed to update profile: ' + (err.message || ''))
+        console.error('Error updating profile:', err)
+      } finally {
+        this.loading = false
+      }
+    },
+
+    cancelEdit() {
+      this.editMode = false
+      this.form = {
+        description: this.profile.description || '',
+        phone: this.profile.phone || '',
+        experience: this.profile.experience || '',
+        availability: this.profile.availability || []
+      }
+    },
+    
+    formatDate(dateString) {
+      if (!dateString) return 'N/A'
+      const date = new Date(dateString)
+      return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
+    }
   }
-};
+}
 </script>
 
 <style scoped>
@@ -266,5 +339,19 @@ export default {
 .day-availability:not(.is-available) {
   background-color: #f8d7da;
   color: #721c24;
+}
+
+.stat-card {
+  transition: transform 0.2s;
+  border-radius: 10px;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+}
+
+.stat-icon {
+  color: #6c757d;
 }
 </style>

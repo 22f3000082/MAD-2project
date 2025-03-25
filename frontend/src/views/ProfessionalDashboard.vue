@@ -162,24 +162,27 @@
               <p class="card-text">
                 <strong>Location:</strong> PIN Code {{ request.pin_code }}
               </p>
-              <div class="mb-3">
-                <strong>Instructions:</strong>
-                <p class="mb-0">{{ request.special_instructions || 'No special instructions' }}</p>
+to it              <div class="mb-3">
+                <!-- Indicate if this is a new customer request vs. assigned request -->
+                <span v-if="isNewCustomerRequest(request)" class="badge bg-info mb-2">New Customer Request</span>
               </div>
-              
-              <div class="d-flex justify-content-end gap-2">
+              <div class="mb-3">
+                <strong>Instructions:</strong> 
+                <p class="small text-muted">{{ request.special_instructions || 'No special instructions provided.' }}</p>
+              </div>
+              <div class="mb-3">
                 <!-- Actions for pending requests -->
                 <template v-if="request.status === 'pending'">
-                  <button @click="acceptRequest(request.id)" class="btn btn-success btn-sm">
+                  <button @click="acceptRequest(request.id)" class="btn btn-success btn-sm me-2">
                     <i class="fas fa-check me-1"></i> Accept
                   </button>
-                  <button @click="rejectRequest(request.id)" class="btn btn-danger btn-sm">
+                  <button @click="rejectRequest(request.id)" class="btn btn-danger btn-sm me-2">
                     <i class="fas fa-times me-1"></i> Reject
                   </button>
                 </template>
                 
                 <!-- Actions for in-progress requests -->
-                <button v-if="request.status === 'in_progress'" @click="completeRequest(request.id)" class="btn btn-primary btn-sm">
+                <button v-if="request.status === 'in_progress'" @click="completeRequest(request.id)" class="btn btn-primary btn-sm me-2">
                   <i class="fas fa-check-circle me-1"></i> Mark as Completed
                 </button>
                 
@@ -301,11 +304,22 @@
             </div>
 
             <div v-if="selectedRequest.status === 'in_progress'" class="mt-3">
+              <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                You must confirm that you have exited the customer location before marking the service as completed.
+              </div>
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="exitedLocation" v-model="selectedRequest.exited_location">
                 <label class="form-check-label" for="exitedLocation">
-                  I have exited the customer location
+                  <strong>I confirm that I have exited the customer location</strong>
                 </label>
+              </div>
+            </div>
+            
+            <div v-if="selectedRequest.status === 'completed'" class="mt-3">
+              <div class="alert alert-success">
+                <i class="fas fa-check-circle me-2"></i>
+                You have marked this service as completed. Waiting for customer to close the service.
               </div>
             </div>
           </div>
@@ -419,192 +433,549 @@
         </div>
       </div>
     </div>
+
+    <!-- Error state with more detailed information -->
+    <div v-if="error" class="alert alert-danger mt-4">
+      <h5><i class="fas fa-exclamation-triangle me-2"></i>Error Loading Dashboard</h5>
+      <p>{{ error }}</p>
+      <div class="mt-2">
+        <button @click="resetError" class="btn btn-primary btn-sm me-2">
+          <i class="fas fa-sync me-1"></i> Retry
+        </button>
+      </div>
+    </div>
+
+    <!-- Remove ProfessionalDiagnostics component -->
+
+    <!-- Debug controls (only in development) -->
+    <div v-if="isDevelopment" class="mt-4 p-3 bg-light rounded">
+      <div class="d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Developer Tools</h5>
+        <div>
+          <button @click="refreshRequests" class="btn btn-primary btn-sm me-2">
+            <i class="fas fa-sync me-1"></i> Refresh Requests
+          </button>
+          <button @click="refreshAllPendingRequests" class="btn btn-warning btn-sm">
+            <i class="fas fa-search me-1"></i> Show All Pending Requests
+          </button>
+        </div>
+      </div>
+      
+      <div class="mt-3">
+        <h6>Debug Information:</h6>
+        <div class="small">
+          <p class="mb-1"><strong>Professional ID:</strong> {{ current_user?.id || 'Unknown' }}</p>
+          <p class="mb-1"><strong>Service Type:</strong> {{ profile.service_type || 'Not specified' }}</p>
+          <p class="mb-1"><strong>Assigned Requests:</strong> {{ serviceRequests.length }}</p>
+          <p class="mb-1"><strong>Available Requests:</strong> {{ availableCustomerRequests.length }}</p>
+          <p class="mb-1"><strong>API Errors:</strong> {{ error || 'None' }}</p>
+        </div>
+      </div>
+      
+      <!-- Debug section for all pending requests -->
+      <div v-if="debugAllPendingRequests" class="mt-3">
+        <h6>All Pending Requests in System:</h6>
+        <div class="alert alert-info">
+          <p class="mb-1">Total pending requests: {{ debugAllPendingRequests.total_count }}</p>
+          <p class="mb-0">These are ALL pending requests in the system, regardless of service type.</p>
+        </div>
+        
+        <div class="table-responsive">
+          <table class="table table-sm table-striped">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Service</th>
+                <th>Category</th>
+                <th>Customer</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="req in debugAllPendingRequests.requests" :key="req.id">
+                <td>{{ req.id }}</td>
+                <td>{{ req.service_info?.name || 'Unknown' }}</td>
+                <td>{{ req.service_info?.category || 'Unknown' }}</td>
+                <td>{{ req.customer_info?.name || 'Unknown' }}</td>
+                <td>{{ formatDate(req.created_at) }}</td>
+                <td>
+                  <button @click="forceAcceptRequest(req.id)" class="btn btn-success btn-sm">
+                    Accept
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
-import { ref, computed, onMounted, reactive } from 'vue';
 import { professionalAPI } from '@/services/api';
+// Remove ProfessionalDiagnostics import
 
 export default {
   name: 'ProfessionalDashboard',
-  setup() {
-    // State
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const professionalName = ref(user.name || 'Professional');
-    const activeTab = ref('pending');
-    const loading = ref(true);
-    const serviceRequests = ref([]);
-    const profile = ref({
-      service_type: '',
-      experience: 0,
-      average_rating: 0,
-      total_reviews: 0,
-      is_approved: false,
-      description: '',
-      email: user.email || '',
-      phone: '',
-      date_created: new Date().toISOString()
-    });
-    const reviews = ref([]);
-    const showDetailsModal = ref(false);
-    const showProfileModal = ref(false);
-    const selectedRequest = ref(null);
-    const isAvailable = ref(true);
-    const updatingProfile = ref(false);
-    const profileForm = reactive({
-      description: '',
-      phone: '',
-      experience: 0
-    });
-
-    // Computed properties
-    const pendingRequests = computed(() => 
-      serviceRequests.value.filter(req => req.status === 'pending')
-    );
+  components: {
+    // Remove ProfessionalDiagnostics component registration
+  },
+  data() {
+    return {
+      professionalName: '',
+      activeTab: 'pending',
+      loading: true,
+      serviceRequests: [],
+      availableCustomerRequests: [], // For new requests
+      profile: {
+        service_type: '',
+        experience: 0,
+        average_rating: 0,
+        total_reviews: 0,
+        is_approved: false,
+        description: '',
+        email: '',
+        phone: '',
+        date_created: new Date().toISOString()
+      },
+      reviews: [],
+      showDetailsModal: false,
+      showProfileModal: false,
+      selectedRequest: null,
+      isAvailable: true,
+      updatingProfile: false,
+      profileForm: {
+        description: '',
+        phone: '',
+        experience: 0
+      },
+      error: null,
+      // Remove showDiagnostics property
+      isDevelopment: process.env.NODE_ENV === 'development',
+      current_user: null,
+      debugAllPendingRequests: null,
+    };
+  },
+  computed: {
+    pendingRequests() {
+      // Add proper return statement
+      return [
+        ...this.serviceRequests.filter(req => req.status === 'pending'),
+        ...this.availableCustomerRequests
+      ];
+    },
     
-    const inProgressRequests = computed(() => 
-      serviceRequests.value.filter(req => req.status === 'in_progress' || req.status === 'assigned')
-    );
+    inProgressRequests() {
+      return this.serviceRequests.filter(req => 
+        req.status === 'in_progress' || req.status === 'assigned'
+      ) || [];
+    },
     
-    const completedRequests = computed(() => 
-      serviceRequests.value.filter(req => req.status === 'completed' || req.status === 'closed')
-    );
+    completedRequests() {
+      return this.serviceRequests.filter(req => 
+        req.status === 'completed' || req.status === 'closed'
+      ) || [];
+    },
     
-    const filteredRequests = computed(() => {
-      if (activeTab.value === 'pending') {
-        return pendingRequests.value;
-      } else if (activeTab.value === 'assigned') {
-        return inProgressRequests.value;
-      } else if (activeTab.value === 'completed') {
-        return completedRequests.value;
+    filteredRequests() {
+      switch(this.activeTab) {
+        case 'pending':
+          return this.pendingRequests;
+        case 'assigned':
+          return this.inProgressRequests;
+        case 'completed':
+          return this.completedRequests;
+        default:
+          return [];
       }
-      return [];
-    });
-
-    // Methods
-    const fetchData = async () => {
-      loading.value = true;
+    }
+  },
+  created() {
+    this.fetchData();
+  },
+  
+  methods: {
+    checkAuth() {
+      const token = localStorage.getItem('token');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      
+      // Store current user for debugging
+      this.current_user = user;
+      
+      if (!token) {
+        console.log('No authentication token found - redirecting to login');
+        // Add a small delay to prevent navigation errors during component initialization
+        setTimeout(() => {
+          this.$router.push('/login');
+        }, 100);
+        return false;
+      }
+      
+      if (user.role !== 'professional') {
+        console.log('User is not a professional - redirecting');
+        setTimeout(() => {
+          this.$router.push('/login');
+        }, 100);
+        return false;
+      }
+      
+      this.professionalName = user.name || 'Professional';
+      return true;
+    },
+    
+    async fetchData() {
       try {
-        const [requestsData, profileData] = await Promise.all([
-          professionalAPI.getAssignments(),
-          professionalAPI.getProfile()
-        ]);
-        serviceRequests.value = requestsData;
+        // Only proceed if authentication check passed
+        if (!this.checkAuth()) {
+          return;
+        }
         
-        // Populate profile data
-        profile.value = {
-          ...profile.value,
+        this.loading = true;
+        this.error = null;
+        
+        // Only fetch data if we have a token
+        const token = localStorage.getItem('token')
+        if (!token) {
+          throw new Error('Authentication required')
+        }
+        
+        await Promise.all([
+          this.fetchProfile(),
+          this.fetchRequests()
+        ])
+      } catch (error) {
+        console.error('Dashboard data fetch error:', error)
+        this.error = error.message || 'Failed to load dashboard data'
+        
+        // If token is missing or invalid, redirect to login
+        if (error.message.includes('authentication') || error.message.includes('token')) {
+          setTimeout(() => this.$router.push('/login'), 1000)
+        }
+      } finally {
+        this.loading = false
+      }
+    },
+    async fetchProfile() {
+      try {
+        const profileData = await professionalAPI.getProfile();
+        this.profile = {
+          ...this.profile,
           ...profileData
         };
         
         // Initialize profile form with current values
-        profileForm.description = profileData.description || '';
-        profileForm.phone = profileData.phone || '';
-        profileForm.experience = profileData.experience || 0;
+        this.profileForm.description = profileData.description || '';
+        this.profileForm.phone = profileData.phone || '';
+        this.profileForm.experience = profileData.experience || 0;
+      } catch (error) {
+        console.error('Failed to load profile data:', error);
+        // Continue with default profile values
+      }
+    },
+    async fetchRequests() {
+      try {
+        this.loading = true;
         
-        // Fetch reviews
-        fetchReviews();
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        loading.value = false;
-      }
-    };
-
-    const fetchReviews = async () => {
-      try {
-        const reviewsData = await professionalAPI.getReviews();
-        reviews.value = reviewsData;
-      } catch (error) {
-        console.error('Error fetching reviews:', error);
-      }
-    };
-
-    const acceptRequest = async (requestId, closeModal = false) => {
-      try {
-        await professionalAPI.updateStatus(requestId, 'in_progress');
-        await fetchData();
-        if (closeModal) {
-          showDetailsModal.value = false;
-        }
-      } catch (error) {
-        console.error('Error accepting request:', error);
-      }
-    };
-
-    const rejectRequest = async (requestId, closeModal = false) => {
-      if (confirm('Are you sure you want to reject this request?')) {
+        // Clear previous data to avoid displaying stale information
+        this.serviceRequests = [];
+        this.availableCustomerRequests = [];
+        
+        // Debug auth token
+        const token = localStorage.getItem('token');
+        console.log('Using token for requests (first 10 chars):', token ? token.substring(0, 10) + '...' : 'No token');
+        
+        // Get all service requests assigned to this professional
+        console.log('Fetching assigned service requests...');
         try {
-          await professionalAPI.updateStatus(requestId, 'rejected');
-          await fetchData();
-          if (closeModal) {
-            showDetailsModal.value = false;
+          const requestsData = await professionalAPI.getAssignments();
+          console.log('Assigned requests response:', requestsData);
+          
+          if (Array.isArray(requestsData)) {
+            this.serviceRequests = requestsData.map(request => ({
+              ...request,
+              // Ensure these fields exist even if backend doesn't provide them
+              service: request.service || { name: 'Unknown Service', base_price: 0 },
+              customer: request.customer_name || { customer_name: 'Unknown Customer' }
+            }));
+            console.log(`Loaded ${this.serviceRequests.length} assigned service requests`);
+          } else {
+            console.error('Invalid response format for assigned requests:', requestsData);
+          }
+        } catch (assignmentError) {
+          console.error('Error fetching assignments:', assignmentError);
+          this.error = 'Failed to load your assigned service requests: ' + (assignmentError.message || 'Unknown error');
+        }
+        
+        // Also get available customer requests that aren't assigned yet
+        try {
+          console.log('Fetching available service requests...');
+          const availableRequests = await professionalAPI.getAvailableRequests();
+          console.log('Available requests response:', availableRequests);
+          
+          if (Array.isArray(availableRequests)) {
+            this.availableCustomerRequests = availableRequests.map(request => ({
+              ...request,
+              // Ensure these fields exist even if backend doesn't provide them
+              service: request.service || { name: 'Unknown Service', base_price: 0 },
+              customer: request.customer || { customer_name: 'Unknown Customer' },
+              // Add a flag for UI differentiation
+              isNewRequest: true
+            }));
+            console.log(`Loaded ${this.availableCustomerRequests.length} available customer requests`);
+          } else {
+            console.error('Invalid response format for available requests:', availableRequests);
           }
         } catch (error) {
-          console.error('Error rejecting request:', error);
+          console.error('Failed to load available requests:', error);
+          this.availableCustomerRequests = [];
         }
+        
+        // Sort requests by date (newest first)
+        this.serviceRequests.sort((a, b) => {
+          const dateA = a.created_at ? new Date(a.created_at) : new Date(0);
+          const dateB = b.created_at ? new Date(b.created_at) : new Date(0);
+          return dateB - dateA;
+        });
+        
+        // Debug counts after loading
+        console.log(`Pending: ${this.pendingRequests.length}, In progress: ${this.inProgressRequests.length}, Completed: ${this.completedRequests.length}`);
+      } catch (error) {
+        console.error('Failed to load service requests:', error);
+        this.error = 'Failed to load service requests. Please try again later.';
+      } finally {
+        this.loading = false;
+        
+        // Fetch reviews with error handling
+        this.fetchReviews();
       }
-    };
-
-    const completeRequest = async (requestId, closeModal = false) => {
+    },
+    
+    // Remove setupSampleData method and replace with resetError
+    resetError() {
+      this.error = null;
+      this.fetchData();
+    },
+    
+    // Add a helper method to check if a request is a new available request vs. already assigned
+    isNewCustomerRequest(request) {
+      // Check if it comes from availableCustomerRequests array or is flagged as a new request
+      return request.isNewRequest || this.availableCustomerRequests.some(r => r.id === request.id);
+    },
+    
+    // Add a fetchReviews method with proper error handling
+    async fetchReviews() {
       try {
-        const request = serviceRequests.value.find(r => r.id === requestId);
-        if (request && !request.exited_location) {
-          alert('You must confirm that you have exited the customer location before completing the service.');
+        console.log('Fetching professional reviews...');
+        const reviewsData = await professionalAPI.getReviews();
+        
+        if (Array.isArray(reviewsData)) {
+          this.reviews = reviewsData;
+          console.log(`Loaded ${this.reviews.length} reviews`);
+        } else {
+          console.error('Invalid reviews response format:', reviewsData);
+          this.reviews = [];
+        }
+      } catch (error) {
+        console.error('Failed to load reviews:', error);
+        this.reviews = []; // Set to empty array on error
+      }
+    },
+    
+    async acceptRequest(requestId, closeModal = false) {
+      try {
+        this.loading = true;
+        
+        console.log(`Attempting to accept service request ${requestId}`);
+        
+        // Get the request either from service requests or available requests
+        let request = this.serviceRequests.find(r => r.id === requestId);
+        if (!request) {
+          request = this.availableCustomerRequests.find(r => r.id === requestId);
+        }
+        
+        if (!request) {
+          throw new Error('Request not found');
+        }
+        
+        // Check if the request can be accepted
+        if (request.status !== 'pending') {
+          alert('This request cannot be accepted in its current state.');
           return;
         }
         
-        await professionalAPI.updateStatus(requestId, 'completed');
-        await fetchData();
+        // Accept the request - log the API calls
+        console.log(`Calling API to update status of request ${requestId} to in_progress`);
+        await professionalAPI.updateStatus(requestId, 'in_progress');
+        console.log('Status update API call completed successfully');
+        
+        // Refresh data
+        await this.fetchData();
+        
         if (closeModal) {
-          showDetailsModal.value = false;
+          this.showDetailsModal = false;
+        }
+        
+        // Show success notification
+        alert('Service request accepted successfully. You can find it in the "In Progress" tab.');
+      } catch (error) {
+        console.error('Error accepting request:', error);
+        alert('Failed to accept request: ' + (error.message || 'Unknown error'));
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async rejectRequest(requestId, closeModal = false) {
+      if (confirm('Are you sure you want to reject this request?')) {
+        try {
+          this.loading = true;
+          
+          // Get the request either from service requests or available requests
+          let request = this.serviceRequests.find(r => r.id === requestId);
+          if (!request) {
+            request = this.availableCustomerRequests.find(r => r.id === requestId);
+          }
+          
+          if (!request) {
+            throw new Error('Request not found');
+          }
+          
+          // Check if the request can be rejected
+          if (request.status !== 'pending' && request.status !== 'available') {
+            alert('This request cannot be rejected in its current state.');
+            return;
+          }
+          
+          // Get rejection reason first
+          const reason = prompt('Please provide a reason for rejection (optional):');
+          
+          // Reject the request
+          await professionalAPI.updateStatus(requestId, 'rejected');
+          
+          // Add rejection reason if provided
+          if (reason && reason.trim()) {
+            await professionalAPI.addRejectionReason(requestId, reason);
+          }
+          
+          // Refresh data
+          await this.fetchData();
+          
+          if (closeModal) {
+            this.showDetailsModal = false;
+          }
+          
+          alert('Service request has been rejected.');
+        } catch (error) {
+          console.error('Error rejecting request:', error);
+          alert('Failed to reject request: ' + (error.message || 'Unknown error'));
+        } finally {
+          this.loading = false;
+        }
+      }
+    },
+
+    async completeRequest(requestId, closeModal = false) {
+      try {
+        this.loading = true;
+        
+        const request = this.serviceRequests.find(r => r.id === requestId);
+        if (!request) {
+          throw new Error('Request not found');
+        }
+        
+        // Check if the request is in progress
+        if (request.status !== 'in_progress' && request.status !== 'assigned') {
+          alert('Only in-progress requests can be marked as completed.');
+          return;
+        }
+        
+        let locationExitConfirmed = false;
+        
+        // Check if location exit is confirmed
+        if (closeModal && this.selectedRequest) {
+          // Use the modal's exit confirmation checkbox
+          if (!this.selectedRequest.exited_location) {
+            alert('You must confirm you have exited the customer location before completing the service.');
+            this.loading = false;
+            return;
+          }
+          locationExitConfirmed = true;
+        } else {
+          // If not in modal, ask for confirmation
+          if (confirm('Have you exited the customer location? This is required before completing the service.')) {
+            locationExitConfirmed = true;
+          } else {
+            this.loading = false;
+            return;
+          }
+        }
+        
+        // Confirm location exit first
+        if (locationExitConfirmed) {
+          await professionalAPI.confirmLocationExit(requestId);
+          
+          // Now complete the request
+          await professionalAPI.updateStatus(requestId, 'completed');
+          
+          // Refresh data
+          await this.fetchData();
+          
+          if (closeModal) {
+            this.showDetailsModal = false;
+          }
+          
+          alert('Service request marked as completed successfully. The customer will be notified to close the service.');
         }
       } catch (error) {
         console.error('Error completing request:', error);
+        alert('Failed to complete the request: ' + (error.message || 'Unknown error'));
+      } finally {
+        this.loading = false;
       }
-    };
-
-    const viewRequestDetails = (request) => {
+    },
+    
+    viewRequestDetails(request) {
       // Add the exited_location property if needed
-      selectedRequest.value = {
+      this.selectedRequest = {
         ...request,
-        exited_location: false
+        exited_location: request.exited_location || false
       };
-      showDetailsModal.value = true;
-    };
+      this.showDetailsModal = true;
+    },
 
-    const updateAvailability = async () => {
+    async updateAvailability() {
       try {
-        await professionalAPI.updateAvailability(isAvailable.value);
-        alert(`You are now ${isAvailable.value ? 'available' : 'unavailable'} for new service requests.`);
+        await professionalAPI.updateAvailability(this.isAvailable);
+        alert(`You are now ${this.isAvailable ? 'available' : 'unavailable'} for new service requests.`);
       } catch (error) {
         console.error('Error updating availability:', error);
         // Revert to previous state if there was an error
-        isAvailable.value = !isAvailable.value;
+        this.isAvailable = !this.isAvailable;
       }
-    };
+    },
 
-    const updateProfile = async () => {
+    async updateProfile() {
       try {
-        updatingProfile.value = true;
-        await professionalAPI.updateProfile(profileForm);
+        this.updatingProfile = true;
+        await professionalAPI.updateProfile(this.profileForm);
         
         // Update local profile data
-        profile.value.description = profileForm.description;
-        profile.value.phone = profileForm.phone;
-        profile.value.experience = profileForm.experience;
-        
+        this.profile.description = this.profileForm.description;
+        this.profile.phone = this.profileForm.phone;
+        this.profile.experience = this.profileForm.experience;
+          
         alert('Profile updated successfully!');
       } catch (error) {
         console.error('Error updating profile:', error);
         alert('Failed to update profile. Please try again.');
       } finally {
-        updatingProfile.value = false;
+        this.updatingProfile = false;
       }
-    };
+    },
 
-    const formatDate = (dateString) => {
+    formatDate(dateString) {
       if (!dateString) return 'N/A';
       const date = new Date(dateString);
       return date.toLocaleString('en-US', {
@@ -612,11 +983,11 @@ export default {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
       });
-    };
+    },
 
-    const getStatusBadgeClass = (status) => {
+    getStatusBadgeClass(status) {
       const classes = {
         pending: 'badge bg-warning',
         rejected: 'badge bg-danger',
@@ -626,48 +997,83 @@ export default {
         closed: 'badge bg-secondary'
       };
       return classes[status] || 'badge bg-secondary';
-    };
+    },
 
-    const getEmptyStateMessage = () => {
-      if (activeTab.value === 'pending') {
+    getEmptyStateMessage() {
+      if (this.activeTab === 'pending') {
         return 'No new service requests available at the moment. Check back later.';
-      } else if (activeTab.value === 'assigned') {
+      } else if (this.activeTab === 'assigned') {
         return 'You have no active service assignments.';
       } else {
         return 'You have not completed any service requests yet.';
       }
-    };
+    },
 
-    // Lifecycle hooks
-    onMounted(fetchData);
-
-    return {
-      professionalName,
-      activeTab,
-      loading,
-      serviceRequests,
-      profile,
-      reviews,
-      pendingRequests,
-      inProgressRequests,
-      completedRequests,
-      filteredRequests,
-      showDetailsModal,
-      showProfileModal,
-      selectedRequest,
-      isAvailable,
-      profileForm,
-      updatingProfile,
-      acceptRequest,
-      rejectRequest,
-      completeRequest,
-      viewRequestDetails,
-      updateAvailability,
-      updateProfile,
-      formatDate,
-      getStatusBadgeClass,
-      getEmptyStateMessage
-    };
+    // Add a specific method for refreshing requests
+    async refreshRequests() {
+      try {
+        console.log("Manually refreshing requests...");
+        this.loading = true;
+        
+        // First check the professional's profile and service type
+        const profileData = await professionalAPI.getProfile();
+        console.log("Professional profile:", profileData);
+        
+        // Then fetch customer requests
+        await this.fetchRequests();
+        
+        console.log("Refresh completed");
+      } catch (error) {
+        console.error("Error refreshing requests:", error);
+        this.error = `Error refreshing: ${error.message}`;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // Method to see ALL pending requests in the system
+    async refreshAllPendingRequests() {
+      try {
+        this.loading = true;
+        console.log("Fetching ALL pending requests (debug mode)");
+        
+        const result = await professionalAPI.getAllPendingRequests();
+        this.debugAllPendingRequests = result;
+        
+        console.log("All pending requests:", this.debugAllPendingRequests);
+      } catch (error) {
+        console.error("Error fetching all pending requests:", error);
+        this.error = `Error: ${error.message}`;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // Method to force-accept a request even if it doesn't match service type
+    async forceAcceptRequest(requestId) {
+      if (confirm(`Are you sure you want to accept request #${requestId}?`)) {
+        try {
+          this.loading = true;
+          
+          console.log(`Force-accepting request ${requestId}...`);
+          await professionalAPI.updateStatus(requestId, 'in_progress');
+          
+          alert(`Request #${requestId} accepted successfully!`);
+          
+          // Refresh both regular requests and debug data
+          await this.fetchRequests();
+          await this.refreshAllPendingRequests();
+        } catch (error) {
+          console.error("Error force-accepting request:", error);
+          alert(`Error: ${error.message}`);
+        } finally {
+          this.loading = false;
+        }
+      }
+    },
+  },
+  mounted() {
+    // Don't call fetchData here since we're doing it in created/checkAuth
   }
 };
 </script>
@@ -768,5 +1174,53 @@ export default {
   .card-title {
     font-size: 0.9rem;
   }
+}
+
+/* Add new styles */
+.alert {
+  border-radius: 0.5rem;
+}
+
+.alert-info {
+  background-color: rgba(13, 202, 240, 0.1);
+  border-color: rgba(13, 202, 240, 0.2);
+  color: #055160;
+}
+
+.alert-warning {
+  background-color: rgba(255, 193, 7, 0.1);
+  border-color: rgba(255, 193, 7, 0.2);
+  color: #664d03;
+}
+
+.alert-success {
+  background-color: rgba(25, 135, 84, 0.1);
+  border-color: rgba(25, 135, 84, 0.2);
+  color: #0f5132;
+}
+
+/* Animation for new items */
+@keyframes highlight {
+  0% { background-color: rgba(25, 135, 84, 0.2); }
+  100% { background-color: transparent; }
+}
+
+.highlight-new {
+  animation: highlight 2s ease-out;
+}
+
+.customer-avatar img {
+  object-fit: cover;
+  border: 2px solid #fff;
+}
+
+/* Add styling for new customer request badges */
+.badge.bg-info {
+  background-color: #0dcaf0 !important;
+  color: #fff;
+  font-weight: 500;
+  padding: 0.4em 0.7em;
+  margin-bottom: 8px;
+  display: inline-block;
 }
 </style>

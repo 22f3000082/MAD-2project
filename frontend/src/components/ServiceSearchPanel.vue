@@ -95,11 +95,14 @@ export default {
     initialParams: {
       type: Object,
       default: () => ({})
+    },
+    categories: {
+      type: Array,
+      default: () => []
     }
   },
   emits: ['search'],
   setup(props, { emit }) {
-    const categories = ref([]);
     const searchParams = reactive({
       name: props.initialParams.name || '',
       pinCode: props.initialParams.pinCode || '',
@@ -109,21 +112,9 @@ export default {
       sortBy: props.initialParams.sortBy || ''
     });
 
-    const fetchCategories = async () => {
-      try {
-        const response = await serviceAPI.getServiceTypes();
-        categories.value = response;
-      } catch (error) {
-        console.error('Error fetching service types:', error);
-      }
-    };
-
     const emitSearch = () => {
       emit('search', { ...searchParams });
     };
-
-    // Initialize categories on component mount
-    fetchCategories();
 
     // Watch for prop changes
     watch(() => props.initialParams, (newParams) => {
@@ -135,7 +126,6 @@ export default {
     }, { deep: true });
 
     return {
-      categories,
       searchParams,
       emitSearch
     };

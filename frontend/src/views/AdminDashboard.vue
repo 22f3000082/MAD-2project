@@ -218,7 +218,10 @@
                           <button class="btn btn-sm btn-warning" @click="editService(service)">
                             <i class="fas fa-edit"></i> Edit
                           </button>
-                          <button class="btn btn-sm btn-danger" @click="deleteService(service.id)">
+                          <button 
+                            @click="handleDeleteService(service.id)"
+                            class="btn btn-sm btn-danger"
+                            :disabled="isDeleting">
                             <i class="fas fa-trash"></i> Delete
                           </button>
                         </div>
@@ -403,6 +406,7 @@ export default {
     const usersChart = ref(null)
     const loading = ref(false)
     const error = ref(null)
+    const isDeleting = ref(false)
 
     // Tabs configuration
     const tabs = [
@@ -519,14 +523,26 @@ export default {
       }
     }
 
-    const deleteService = async (serviceId) => {
-      if (confirm('Are you sure you want to delete this service?')) {
-        try {
-          await adminAPI.deleteService(serviceId)
-          await loadDashboardData()
-        } catch (error) {
-          console.error('Error deleting service:', error)
-        }
+    const handleServiceDelete = async (serviceId) => {
+      try {
+          const result = await adminAPI.deleteService(serviceId);
+          
+          if (result.wasDeactivated) {
+              this.$toast.info(result.message);
+              // Update the service status in the list instead of removing it
+              const serviceIndex = services.value.findIndex(s => s.id === serviceId);
+              if (serviceIndex !== -1) {
+                  services.value[serviceIndex].is_active = false;
+                  services.value[serviceIndex].status = 'inactive';
+              }
+          } else {
+              this.$toast.success('Service deleted successfully');
+              // Remove the service from the list
+              services.value = services.value.filter(s => s.id !== serviceId);
+          }
+      } catch (error) {
+          console.error('Failed to delete service:', error);
+          this.$toast.error(error.message || 'Failed to delete service');
       }
     }
 
@@ -661,15 +677,69 @@ export default {
       pendingApprovals,
       loading,
       error,
+      isDeleting,
       showNewServiceModal,
       editService,
       saveService,
-      deleteService,
       approveUser,
       toggleUserBlock,
       viewUserDetails,
       refreshUsers,
       loadDashboardData
+    }
+  },
+  methods: {
+    async handleDeleteService(serviceId) {
+      if (!serviceId || typeof serviceId !== 'number') {
+        console.error('Invalid service ID:', serviceId);
+        return;
+      }
+
+      if (!confirm('Are you sure you want to delete this service?')) {
+        return;
+      }
+
+      try {
+        this.isDeleting = true;
+        // Fix the API reference to use the imported adminAPI
+        const result = await adminAPI.deleteService(serviceId);
+        
+        if (result.wasDeactivated) {
+          // Check if $toast exists before using it
+          if (this.$toast) {
+            this.$toast.info(result.message || 'Service was deactivated');
+          } else {
+            alert(result.message || 'Service was deactivated');
+          }
+          
+          // Update the service status in the list instead of removing it
+          const serviceIndex = this.services.findIndex(s => s.id === serviceId);
+          if (serviceIndex !== -1) {
+            this.services[serviceIndex].is_active = false;
+            this.services[serviceIndex].status = 'inactive';
+          }
+        } else {
+          // Remove service from list
+          this.services = this.services.filter(s => s.id !== serviceId);
+          
+          // Check if $toast exists before using it
+          if (this.$toast) {
+            this.$toast.success(result.message || 'Service deleted successfully');
+          } else {
+            alert(result.message || 'Service deleted successfully');
+          }
+        }
+      } catch (error) {
+        console.error('Delete failed:', error);
+        // Check if $toast exists before using it
+        if (this.$toast) {
+          this.$toast.error(error.message || 'Failed to delete service');
+        } else {
+          alert(error.message || 'Failed to delete service');
+        }
+      } finally {
+        this.isDeleting = false;
+      }
     }
   }
 }
@@ -737,5 +807,32 @@ export default {
 
 .alert-warning {
   border-left: 4px solid #ffc107;
+}
+
+.btn-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: #c82333;
+}
+
+.badge {
+  padding: 0.5em 0.75em;
+  border-radius: 0.25rem;
+}
+
+.bg-success {
+  background-color: #28a745;
+}
+
+.bg-danger {
+  background-color: #dc3545;
 }
 </style>

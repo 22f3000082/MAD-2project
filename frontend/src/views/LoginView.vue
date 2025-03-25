@@ -130,6 +130,8 @@ export default {
         email: '',
         password: ''
       },
+      loading: false,
+      error: null,
       errors: {},
       loginError: '',
       isLoading: false,
@@ -160,46 +162,38 @@ export default {
       return isValid
     },
     async handleSubmit() {
-      this.loginError = ''
-      if (!this.validateForm()) {
-        return
-      }
-
-      this.isLoading = true
       try {
-        const response = await authService.login(this.formData)
+        this.loading = true;
+        this.error = null;
         
-        // Redirect based on user role
-        switch (response.user.role) {
-          case 'admin':
-            await this.$router.push('/admin/dashboard')
-            break
-          case 'customer':
-            await this.$router.push('/customer/dashboard')
-            break
-          case 'professional':
-            if (!response.user.is_approved) {
-              this.loginError = 'Your account is pending approval. Please wait for admin verification.'
-              localStorage.removeItem('token')
-              localStorage.removeItem('user')
-              return
-            }
-            await this.$router.push('/professional/dashboard')
-            break
-          default:
-            await this.$router.push('/')
+        // Form validation
+        if (!this.formData.email || !this.formData.password) {
+          this.error = 'Email and password are required';
+          return;
         }
-      } catch (error) {
-        console.error('Login error:', error)
-        if (error.response?.status === 401) {
-          this.loginError = 'Invalid email or password'
-        } else if (error.message) {
-          this.loginError = error.message
-        } else {
-          this.loginError = 'Network error. Please check your connection and try again.'
-        }
+        
+        // Create a plain JavaScript object (not a Vue reactive object)
+        const credentials = {
+          email: this.formData.email,
+          password: this.formData.password
+        };
+        
+        // Log credentials format but not the actual values
+        console.log('Submitting credentials with format:', 
+                    { email: 'type: ' + typeof credentials.email, 
+                      password: 'type: ' + typeof credentials.password });
+                      
+        await authService.login(credentials);
+        
+        // If we got here without errors, clear the form
+        this.formData.email = '';
+        this.formData.password = '';
+      } catch (err) {
+        // Better error handling
+        console.error('Login submission error:', err);
+        this.error = err.message || 'Login failed. Please check your credentials and try again.';
       } finally {
-        this.isLoading = false
+        this.loading = false;
       }
     }
   },
