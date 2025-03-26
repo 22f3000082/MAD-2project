@@ -37,10 +37,10 @@
                 </router-link>
               </li>
               <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                <!-- <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                   <i class="fas fa-cogs me-1"></i> Manage
-                </a>
-                <ul class="dropdown-menu">
+                </a> -->
+                <!-- <ul class="dropdown-menu">
                   <li>
                     <router-link class="dropdown-item" to="/admin/services">
                       <i class="fas fa-tools me-1"></i> Services
@@ -56,7 +56,7 @@
                       <i class="fas fa-users me-1"></i> Customers
                     </router-link>
                   </li>
-                </ul>
+                </ul> -->
               </li>
             </template>
 

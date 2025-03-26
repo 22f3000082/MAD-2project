@@ -234,6 +234,11 @@
 
             <!-- Analytics Tab -->
             <div v-if="currentTab === 'analytics'" class="analytics">
+              <div class="row border">
+                <div class="text-end">
+                  <button @click="downloadCSV" class="btn btn-sm btn-primary">Download CSV</button>
+                </div>
+              </div>
               <div class="row">
                 <div class="col-md-6">
                   <div class="card">
@@ -251,12 +256,14 @@
                     </div>
                   </div>
                 </div>
+                
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+    
 
     <!-- New/Edit Service Modal -->
     <div class="modal fade" id="serviceModal" tabindex="-1">
@@ -482,6 +489,34 @@ export default {
       }
     };
 
+    const downloadCSV = () => {
+      try {
+        // Implement CSV download logic here
+        fetch('/api/export')
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+          })
+          .then(data => {
+              // if (data && data.id) { // Check if data.id exists before fetch(`/api/csv_result/${data.id}`)
+              window.location.href = `/api/csv_result/${data.id}`;
+            // } else {
+              throw new Error('Invalid response data');
+            }
+          )
+          // .catch(error => {
+          //   console.error('CSV download error:', error);
+          //   alert('Failed to download CSV: ' + error.message);
+          // }
+          // );
+      } catch (err) {
+        console.error('Error initiating CSV download:', err);
+        alert('Error initiating CSV download');
+      }
+    }
+
     const updateStats = () => {
       stats.value = {
         totalUsers: users.value.length,
@@ -558,6 +593,8 @@ export default {
         alert('Failed to approve professional: ' + (error.message || 'Unknown error'));
       }
     };
+
+    
 
     const toggleUserBlock = async (user) => {
       try {
@@ -685,7 +722,8 @@ export default {
       toggleUserBlock,
       viewUserDetails,
       refreshUsers,
-      loadDashboardData
+      loadDashboardData,
+      downloadCSV
     }
   },
   methods: {

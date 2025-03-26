@@ -13,14 +13,20 @@ from backend.application.resources import api, initialize_routes
 from flask_cors import CORS
 import os
 import logging
+from backend.application.celery_init import celery_init_app
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+# Create a global app instance
+app = Flask(__name__)
+# Create a global celery_app instance - this is what the worker will import
+celery_app = None
+
 # Initialize Flask app
 def create_app():
-    app = Flask(__name__)
+    global app, celery_app
     
     # Configure static files
     app.static_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist'))
@@ -34,33 +40,6 @@ def create_app():
         logger.error(f"Static folder does not exist: {app.static_folder}")
         os.makedirs(app.static_folder, exist_ok=True)
     
-    # app.static_folder = dist_dir
-    # app.template_folder = dist_dir
-    
-    # # Configure CORS
-    # CORS(app, resources={
-    #     r"/api/*": {
-    #         "origins": ["http://localhost:8081"],
-    #         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    #         "allow_headers": ["Content-Type", "Authorization", "Accept"],
-    #         "supports_credentials": True,
-    #         "expose_headers": ["Content-Type", "Authorization"]
-    #     },
-    #     r"/auth/*": {
-    #         "origins": ["http://localhost:8081"],
-    #         "methods": ["GET", "POST", "OPTIONS"],
-    #         "allow_headers": ["Content-Type", "Authorization", "Accept"],
-    #         "supports_credentials": True,
-    #         "expose_headers": ["Content-Type", "Authorization"]
-    #     }
-    # },supports_credentials=True)
-
-
-    
-    # Configure CORS - Updated configuration
-# CORS(app, supports_credentials=True)
-# CORS(app, supports_credentials=True)
-    # CORS(app, supports_credentials=True)
     CORS(app, resources={
              r"/*": {
                  "origins": "http://localhost:8081",
@@ -90,10 +69,14 @@ def create_app():
     app.register_blueprint(admin, url_prefix='/api/admin')
     app.register_blueprint(auth, url_prefix='/auth')
     app.register_blueprint(services_blueprint, url_prefix='/api')
+    # app.register_blueprint(main)  # Register main blueprint with no prefix
     
     # Initialize Flask-RESTful API
     api.init_app(app)
     initialize_routes(api)
+    
+    # Initialize Celery
+    celery_app = celery_init_app(app)
     
     # Serve Vue frontend
     @app.route('/', defaults={'path': ''})
@@ -172,6 +155,11 @@ def create_app():
 if __name__ == '__main__':
     app = create_app()
     app.run(host='0.0.0.0', debug=True, port=8080)
+else:
+    # When imported by the Celery worker, initialize the app and celery
+    app = create_app()
+    # Log that celery is initialized
+    logger.info("Celery app initialized and available as app:celery_app")
 
 
 

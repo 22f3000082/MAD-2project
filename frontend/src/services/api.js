@@ -439,7 +439,19 @@ export const customerAPI = {
   // Enhanced addReview method with additional parameters
   async addReview(requestId, reviewData) {
     try {
+      console.log(`Submitting review for request ${requestId}:`, reviewData);
+      
+      // Validate the review data
+      if (typeof reviewData.rating !== 'number' || reviewData.rating < 1 || reviewData.rating > 5) {
+        throw new Error('Rating must be a number between 1 and 5');
+      }
+      
+      if (!reviewData.remarks || reviewData.remarks.trim() === '') {
+        throw new Error('Please provide comments with your review');
+      }
+      
       const response = await api.post(`/api/customer/requests/${requestId}/review`, reviewData);
+      console.log('Review submitted successfully:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error adding review:', error);
@@ -552,6 +564,18 @@ export const professionalAPI = {
       console.log('Fetching professional profile');
       const response = await api.get('/api/professional/profile');
       console.log('Retrieved profile data');
+      
+      // After getting profile, also fetch reviews to include in the profile
+      try {
+        const reviewsResponse = await api.get('/api/professional/reviews');
+        if (Array.isArray(reviewsResponse.data)) {
+          response.data.reviews = reviewsResponse.data;
+        }
+      } catch (reviewError) {
+        console.error('Error fetching reviews for profile:', reviewError);
+        response.data.reviews = [];
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -563,7 +587,8 @@ export const professionalAPI = {
         experience: 0,
         is_approved: false,
         average_rating: 0,
-        total_reviews: 0
+        total_reviews: 0,
+        reviews: []
       };
     }
   },
@@ -598,7 +623,7 @@ export const professionalAPI = {
       return [];
     }
   },
-  
+
   async updateAvailability(isAvailable) {
     try {
       console.log(`Updating availability to: ${isAvailable}`)
@@ -610,7 +635,7 @@ export const professionalAPI = {
       throw error
     }
   },
-  
+
   async confirmLocationExit(requestId) {
     try {
       console.log(`Confirming exit for request: ${requestId}`)
@@ -649,7 +674,6 @@ export const professionalAPI = {
         console.log(`Primary endpoint returned ${response.data?.length || 0} requests`);
       } catch (primaryError) {
         console.error('Primary endpoint failed, trying fallback:', primaryError);
-        
         // If primary endpoint fails, try the debug endpoint
         response = await api.get('/api/professional/all-pending-requests', {
           headers: {
@@ -667,7 +691,6 @@ export const professionalAPI = {
       
       // Log the full response for debugging
       console.log(`Received available requests:`, response.data);
-      
       // Provide sensible defaults for missing data
       if (Array.isArray(response.data)) {
         return response.data.map(req => {
@@ -675,20 +698,19 @@ export const professionalAPI = {
           const enhancedRequest = {
             ...req,
             // Ensure service object exists
-            service: req.service || req.service_info || { 
-              name: 'Unknown Service', 
+            service: req.service || req.service_info || {
+              name: 'Unknown Service',
               base_price: 0,
               description: ''
             },
             // Ensure customer object exists
-            customer: req.customer || req.customer_info || { 
+            customer: req.customer || req.customer_info || {
               customer_name: 'Customer',
               phone: 'Available after accepting'
             },
             // Add UI flags
             isNewRequest: true
           };
-          
           return enhancedRequest;
         });
       }
@@ -697,7 +719,7 @@ export const professionalAPI = {
       return [];
     } catch (error) {
       console.error('Error fetching available requests:', error);
-      // Return empty array instead of throwing
+      // Return empty array instead of throwing to prevent dashboard from breaking
       return [];
     }
   },
@@ -747,7 +769,6 @@ export const professionalAPI = {
         },
         timeout: 10000
       });
-      
       console.log('Rejection reason added:', response.data);
       return response.data;
     } catch (error) {
@@ -895,7 +916,6 @@ export const adminAPI = {
       if (!token) {
         throw new Error('No authentication token found');
       }
-
       const response = await api.put(`/api/admin/services/${serviceId}`, serviceData, {
         headers: {
           'Authentication-Token': token
@@ -922,7 +942,6 @@ export const adminAPI = {
         });
         // return response.data;
       
-      
         // Check response status
         if (response.data.status === 'deactivated') {
             return {
@@ -931,7 +950,6 @@ export const adminAPI = {
                 message: response.data.message
             };
         }
-
         return {
             success: true,
             wasDeactivated: false,
@@ -967,13 +985,11 @@ export const adminAPI = {
   //       if (!token) {
   //           throw new Error('Authentication required');
   //       }
-
   //       const response = await api.delete(`/api/admin/services/${service_id}`, {
   //           headers: {
   //               'Authentication-Token': token
   //           }
   //       });
-
   //       return response.data;
   //   } catch (error) {
   //       console.error('Delete service error:', error.response || error);

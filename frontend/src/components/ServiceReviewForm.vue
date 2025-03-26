@@ -1,87 +1,84 @@
 <template>
-  <div class="service-review-form">
+  <div>
     <div class="modal-header">
-      <h5 class="modal-title">Review Your Service</h5>
-      <button type="button" class="btn-close" @click="close"></button>
+      <h5 class="modal-title">Rate Your Service</h5>
+      <button type="button" class="btn-close" @click="$emit('close')"></button>
     </div>
     <div class="modal-body">
-      <div class="service-summary mb-4 p-3 bg-light rounded">
-        <div class="d-flex align-items-center mb-2">
-          <div class="service-icon me-3">
-            <i class="fas fa-tools fa-2x text-primary"></i>
-          </div>
-          <div>
-            <h5 class="mb-0">{{ serviceName }}</h5>
-            <p class="mb-0 text-muted">{{ formatDate(serviceDate) }}</p>
-          </div>
+      <div class="service-review-form">
+        <div class="text-center mb-4">
+          <h5>{{ serviceName }}</h5>
+          <p class="text-muted small">
+            Completed on {{ formatDate(serviceDate) }} by {{ professionalName }}
+          </p>
         </div>
-        <div v-if="professionalName" class="mt-2">
-          <span class="text-muted">Professional:</span> {{ professionalName }}
-        </div>
-      </div>
-      
-      <form @submit.prevent="submitReview">
-        <div class="mb-4">
-          <label class="form-label d-block">Rating</label>
-          <div class="rating-container d-flex flex-column align-items-center">
-            <div class="stars mb-2">
-              <i v-for="star in 5" 
-                 :key="star" 
-                 class="fas fa-star fa-2x" 
-                 :class="{ 'text-warning': star <= rating, 'text-muted': star > rating }"
-                 @click="rating = star"></i>
+        
+        <form @submit.prevent="submitReview">
+          <!-- Star Rating Component -->
+          <div class="mb-4 text-center">
+            <label class="form-label d-block">Your Rating</label>
+            <div class="star-rating">
+              <span 
+                v-for="star in 5" 
+                :key="star" 
+                class="star-rating-item"
+                :class="{ 'selected': star <= rating }"
+                @click="setRating(star)"
+                @mouseover="hoverRating = star"
+                @mouseleave="hoverRating = 0"
+              >
+                <!-- Replace Font Awesome with Unicode stars for better compatibility -->
+                <span class="star-icon" :class="{ 
+                  'text-warning': star <= (hoverRating || rating),
+                  'text-muted': star > (hoverRating || rating)
+                }">★</span>
+              </span>
             </div>
-            <div class="rating-text">
+            <div class="rating-text mt-2">
               {{ getRatingText() }}
             </div>
+            <div class="text-danger" v-if="validationErrors.rating">
+              {{ validationErrors.rating }}
+            </div>
           </div>
-        </div>
-
-        <div class="mb-3">
-          <label for="reviewRemarks" class="form-label">Your Feedback</label>
-          <textarea
-            id="reviewRemarks"
-            class="form-control"
-            v-model="remarks"
-            rows="4"
-            placeholder="Share your experience with this service..."
-            required
-          ></textarea>
-          <div class="form-text">Your review helps other customers and improves our service.</div>
-        </div>
-        
-        <div class="mb-4">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" v-model="recommendService" id="recommendCheck">
-            <label class="form-check-label" for="recommendCheck">
-              I would recommend this service to others
-            </label>
+          
+          <!-- Comments Field -->
+          <div class="mb-4">
+            <label for="reviewRemarks" class="form-label">Your Comments</label>
+            <textarea
+              id="reviewRemarks"
+              v-model="remarks"
+              class="form-control"
+              rows="4"
+              placeholder="Share your experience with this service professional..."
+            ></textarea>
+            <div class="text-danger" v-if="validationErrors.remarks">
+              {{ validationErrors.remarks }}
+            </div>
           </div>
-        </div>
-        
-        <div class="text-end">
-          <button type="button" class="btn btn-secondary me-2" @click="close">
-            Cancel
-          </button>
-          <button type="submit" class="btn btn-primary" :disabled="submitDisabled || submitting">
-            <span v-if="submitting" class="spinner-border spinner-border-sm me-2"></span>
-            Submit Review
-          </button>
-        </div>
-      </form>
+          
+          <!-- Submit Button -->
+          <div class="d-flex justify-content-end">
+            <button type="button" class="btn btn-secondary me-2" @click="$emit('close')">Cancel</button>
+            <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
+              <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-1"></span>
+              Submit Review
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-import { ref, computed } from 'vue';
 import { customerAPI } from '@/services/api';
 
 export default {
   name: 'ServiceReviewForm',
   props: {
     requestId: {
-      type: [Number, String],
+      type: Number,
       required: true
     },
     serviceName: {
@@ -94,22 +91,31 @@ export default {
     },
     professionalName: {
       type: String,
-      default: ''
+      default: 'Professional'
     }
   },
-  emits: ['close', 'submitted'],
-  setup(props, { emit }) {
-    const rating = ref(0);
-    const remarks = ref('');
-    const recommendService = ref(true);
-    const submitting = ref(false);
+  
+  data() {
+    return {
+      rating: 0,
+      hoverRating: 0,
+      remarks: '',
+      isSubmitting: false,
+      validationErrors: {
+        rating: '',
+        remarks: ''
+      }
+    };
+  },
+  
+  methods: {
+    setRating(value) {
+      this.rating = value;
+      this.validationErrors.rating = '';
+    },
     
-    const submitDisabled = computed(() => {
-      return rating.value === 0 || !remarks.value.trim();
-    });
-    
-    const getRatingText = () => {
-      const ratingTexts = [
+    getRatingText() {
+      const texts = [
         'Select a rating',
         'Poor',
         'Fair',
@@ -117,94 +123,109 @@ export default {
         'Very Good',
         'Excellent'
       ];
-      return ratingTexts[rating.value] || 'Select a rating';
-    };
+      return texts[this.rating] || texts[0];
+    },
     
-    const submitReview = async () => {
-      if (submitDisabled.value) return;
+    validateForm() {
+      let isValid = true;
+      this.validationErrors = {
+        rating: '',
+        remarks: ''
+      };
       
-      submitting.value = true;
+      if (!this.rating || this.rating < 1) {
+        this.validationErrors.rating = 'Please select a rating';
+        isValid = false;
+      }
+      
+      if (!this.remarks.trim()) {
+        this.validationErrors.remarks = 'Please provide some comments about your experience';
+        isValid = false;
+      } else if (this.remarks.length < 5) {
+        this.validationErrors.remarks = 'Comments must be at least 5 characters';
+        isValid = false;
+      }
+      
+      return isValid;
+    },
+    
+    async submitReview() {
       try {
+        if (!this.validateForm()) {
+          return;
+        }
+        
+        this.isSubmitting = true;
+        
         const reviewData = {
-          rating: rating.value,
-          remarks: remarks.value,
-          recommended: recommendService.value
+          rating: this.rating,
+          remarks: this.remarks
         };
         
-        await customerAPI.addReview(props.requestId, reviewData);
-        emit('submitted');
+        await customerAPI.addReview(this.requestId, reviewData);
+        
+        // Clear form and emit event
+        this.rating = 0;
+        this.remarks = '';
+        this.$emit('submitted');
       } catch (error) {
         console.error('Error submitting review:', error);
         alert('Failed to submit review: ' + (error.message || 'Unknown error'));
       } finally {
-        submitting.value = false;
+        this.isSubmitting = false;
       }
-    };
+    },
     
-    const close = () => {
-      emit('close');
-    };
-    
-    const formatDate = (dateString) => {
-      if (!dateString) return '';
+    formatDate(dateString) {
+      if (!dateString) return 'N/A';
       const date = new Date(dateString);
       return date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric'
       });
-    };
-    
-    return {
-      rating,
-      remarks,
-      recommendService,
-      submitting,
-      submitDisabled,
-      getRatingText,
-      submitReview,
-      close,
-      formatDate
-    };
+    }
   }
 };
 </script>
 
 <style scoped>
-.stars {
+.star-rating {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  font-size: 1.75rem;
+}
+
+.star-rating-item {
   cursor: pointer;
-  user-select: none;
+  transition: transform 0.1s;
 }
 
-.stars i {
-  margin: 0 5px;
-  transition: all 0.2s;
-}
-
-.stars i:hover {
+.star-rating-item:hover {
   transform: scale(1.2);
 }
 
-.stars i.text-warning {
-  color: #ffc107;
+.star-rating-item.selected {
+  transform: scale(1.1);
 }
 
-.stars i.text-muted {
-  color: #e0e0e0;
+.star-icon {
+  display: inline-block;
+  font-size: 1.75rem;
+  line-height: 1;
 }
 
 .rating-text {
   font-weight: 500;
-  min-height: 24px;
+  height: 1.5rem; /* Fixed height to prevent layout shifts */
 }
 
-.service-icon {
-  width: 50px;
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background-color: rgba(13, 110, 253, 0.1);
+.text-warning {
+  color: #ffc107 !important;
+}
+
+.text-muted {
+  color: #dee2e6 !important;
 }
 </style>

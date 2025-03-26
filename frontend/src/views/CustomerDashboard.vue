@@ -216,7 +216,7 @@
                     @click="closeRequest(request)"
                   >
                     <i class="fas fa-times me-1"></i>
-                    Cancel
+                    Close
                   </button>
                   <button
                     v-if="request.status === 'pending'"
