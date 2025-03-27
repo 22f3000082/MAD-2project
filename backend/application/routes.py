@@ -693,6 +693,10 @@ def send_mail():
        "status" :"Task started"
     }
 
+# Example Flask route
+@api.route('/api/v2/jim', methods=['GET'])
+def get_jim():
+    return jsonify({"message": "Jim's data"})
 
 @api.route('/health', methods=['GET'])
 def health_check():

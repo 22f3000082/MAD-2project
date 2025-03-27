@@ -10,6 +10,8 @@ from celery.schedules import crontab
 from datetime import datetime
 from flask import render_template
 from .mail import send_email  # Import the email utility
+import os  # Add this import
+
 
 
 celery = Celery('tasks', broker='redis://localhost:6379/0', backend='redis://localhost:6379/1')
@@ -24,12 +26,29 @@ celery.conf.worker_redirect_stdouts = False
 
 # mail = Mail()
 #scheduled tasks
-@celery.task
+@celery.task(ignore_results=False, name='backend.application.task.monthly_report')
 def monthly_report():
     """Scheduled task to send monthly reports to customers."""
     try:
         from flask import current_app
         with current_app.app_context():
+            # Set the template folder explicitly
+            TEMPLATE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'templates'))
+            current_app.template_folder = TEMPLATE_DIR
+            print(f"Resolved TEMPLATE_DIR: {TEMPLATE_DIR}")
+
+            # Configure mail settings explicitly for this app context
+            current_app.config['MAIL_SERVER'] = 'localhost'
+            current_app.config['MAIL_PORT'] = 1025
+            current_app.config['MAIL_USERNAME'] = 'houseservices@gmail.com'
+            current_app.config['MAIL_PASSWORD'] = None
+            current_app.config['MAIL_USE_TLS'] = False
+            current_app.config['MAIL_USE_SSL'] = False
+            
+            # Initialize mail with the current app
+            from .mail import init_mail
+            init_mail(current_app)
+
             customers = User.query.filter_by(role='customer').all()
             report_date = datetime.now().strftime('%B %Y')
             
@@ -41,15 +60,13 @@ def monthly_report():
                     services_requested = ServiceRequest.query.filter_by(customer_id=customer.id).count()
                     services_closed = ServiceRequest.query.filter_by(customer_id=customer.id, status='pending').count()
                     
-                    TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), '..', 'backend', 'application', 'templates')
                     # Render HTML report
                     report_html = render_template(
                         'mail_details.html',
                         customer_name=customer.username,
                         services_requested=services_requested,
                         services_closed=services_closed,
-                        report_date=report_date,
-                        template_folder=TEMPLATE_DIR
+                        report_date=report_date
                     )
                     
                     # Send email

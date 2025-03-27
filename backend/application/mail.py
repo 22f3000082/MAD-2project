@@ -15,9 +15,18 @@ SMTP_SERVER_PORT = 1025
 SENDER_ADDRESS = "houseservices@gmail.com"
 SENDER_PASSWORD = None
 
+# Initialize Flask-Mail instance
+mail = Mail()
+
+def init_mail(app):
+    """
+    Initialize Flask-Mail with the given Flask app.
+    """
+    mail.init_app(app)
+
 def send_email(to_address, subject, message, content="text"):
     """
-    Sends an email using Flask-Mail
+    Sends an email using direct SMTP
     
     Args:
         to_address: Recipient email address
@@ -26,22 +35,26 @@ def send_email(to_address, subject, message, content="text"):
         content: Type of content ('text' or 'html')
     """
     try:
-        # Import mail extension inside the function to avoid circular imports
-        from run import mail
-        
-        msg = Message(
-            subject=subject,
-            recipients=[to_address]
-        )
+        # Create message container
+        msg = MIMEMultipart()
+        msg['Subject'] = subject
+        msg['From'] = SENDER_ADDRESS
+        msg['To'] = to_address
         
         # Set the appropriate message content
         if content == "html":
-            msg.html = message
+            part = MIMEText(message, 'html')
         else:
-            msg.body = message
-            
-        print(f"Sending email to {to_address}: {subject}")
-        mail.send(msg)
+            part = MIMEText(message, 'plain')
+        
+        msg.attach(part)
+        
+        # Send the message via local SMTP server
+        print(f"Connecting to SMTP: {SMTP_SERVER_HOST}:{SMTP_SERVER_PORT}")
+        smtp = smtplib.SMTP(SMTP_SERVER_HOST, SMTP_SERVER_PORT)
+        smtp.send_message(msg)
+        smtp.quit()
+        
         print(f"Email sent successfully to {to_address}")
         return True
     except Exception as e:
