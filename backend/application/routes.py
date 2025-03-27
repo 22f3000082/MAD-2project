@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from celery.result import AsyncResult
 import os
-from .task import csv_report
+from .task import download_csv_report
 # from app import create_app as app
 # from app import create_app
 
@@ -618,22 +618,67 @@ def logout():
 # Create API blueprint
 api = Blueprint('api', __name__, url_prefix='/api')
 
-
-
 @api.route('/export')
 def export_csv():
-    result = csv_report.delay()  #async object
-    return jsonify({
-        'id': result.id,
-        'result': result.result,
-    })
+    try:
+        print("Starting CSV export...")
+        # Check if the static directory exists and is writable
+        import os
+        static_dir = os.path.join(os.path.dirname(__file__), 'static')
+        if not os.path.exists(static_dir):
+            os.makedirs(static_dir)
+            print(f"Created static directory: {static_dir}")
+        
+        # Launch the celery task
+        result = download_csv_report.delay()
+        print(f"CSV export task launched with ID: {result.id}")
+        return jsonify({
+            'id': result.id,
+            'message': 'Report generation started'
+        })
+    except Exception as e:
+        import traceback
+        print(f"Error starting CSV export: {str(e)}")
+        print(traceback.format_exc())
+        return jsonify({
+            'error': f'Failed to start report generation: {str(e)}'
+        }), 500
 
-@api.route('/csv_result/<id>')
-def csv_result(id):
-    res = AsyncResult(id)
-    # static_path = os.path.abspath("static")
-    return send_from_directory('static', res.result)
+@api.route('/csv_result/<task_id>')
+def csv_result(task_id):
+    try:
+        print(f"Checking CSV result for task ID: {task_id}")
+        res = AsyncResult(task_id)
 
+        if not res.ready():
+            return jsonify({'ready': False, 'message': 'Report still generating...'}), 202
+        
+        if not res.successful():
+            return jsonify({'ready': True, 'successful': False, 'error': 'Report generation failed'}), 500
+
+        filename = res.result
+        if filename.startswith("ERROR:"):
+            return jsonify({'ready': True, 'successful': False, 'error': filename[6:]}), 500
+
+        # Validate file existence
+        static_dir = os.path.join(os.path.dirname(__file__), 'static')
+        file_path = os.path.join(static_dir, filename)
+        print(f"Flask looking for file at: {file_path}")
+        if not os.path.exists(file_path):
+            return jsonify({'ready': True, 'successful': False, 'error': 'File not found'}), 500
+        
+        print(f"Looking for file at: {file_path}")
+
+        return send_from_directory('/mnt/c/Users/91829/OneDrive/Documents/VS CODE/Household_service_22f3000082/static', filename, as_attachment=True, download_name=filename)
+
+    except Exception as e:
+        return jsonify({'error': f'Error retrieving report: {str(e)}'}), 500
+    # 
+# app = Flask(__name__, static_folder='static')
+
+@api.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('static', filename)
 
 
 @api.route('/health', methods=['GET'])

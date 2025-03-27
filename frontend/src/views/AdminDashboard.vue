@@ -236,8 +236,17 @@
             <div v-if="currentTab === 'analytics'" class="analytics">
               <div class="row border">
                 <div class="text-end">
-                  <button @click="downloadCSV" class="btn btn-sm btn-primary">Download CSV</button>
+                  <button 
+                    @click="downloadCSV" 
+                    class="btn btn-sm btn-primary"
+                    :disabled="csvLoading">
+                    <span v-if="csvLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                    {{ csvLoading ? 'Generating Report...' : 'Download CSV' }}
+                  </button>
                 </div>
+              </div>
+              <div v-if="csvMessage" class="alert alert-info mt-2">
+                {{ csvMessage }}
               </div>
               <div class="row">
                 <div class="col-md-6">
@@ -414,6 +423,8 @@ export default {
     const loading = ref(false)
     const error = ref(null)
     const isDeleting = ref(false)
+    const csvLoading = ref(false)
+    const csvMessage = ref('')
 
     // Tabs configuration
     const tabs = [
@@ -448,6 +459,8 @@ export default {
     })
 
     // Methods
+
+    
     const loadDashboardData = async () => {
       loading.value = true;
       error.value = null;
@@ -489,33 +502,147 @@ export default {
       }
     };
 
-    const downloadCSV = () => {
+    const refreshUsers = async () => {
+      loading.value = true;
+      error.value = null;
       try {
-        // Implement CSV download logic here
-        fetch('/api/export')
-          .then(response => {
-            if (!response.ok) {
-              throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            return response.json();
-          })
-          .then(data => {
-              // if (data && data.id) { // Check if data.id exists before fetch(`/api/csv_result/${data.id}`)
-              window.location.href = `/api/csv_result/${data.id}`;
-            // } else {
-              throw new Error('Invalid response data');
-            }
-          )
-          // .catch(error => {
-          //   console.error('CSV download error:', error);
-          //   alert('Failed to download CSV: ' + error.message);
-          // }
-          // );
-      } catch (err) {
-        console.error('Error initiating CSV download:', err);
-        alert('Error initiating CSV download');
+        const userData = await adminAPI.getUsers();
+        users.value = userData;
+        updateStats();
+      } catch (error) {
+        console.error('Error refreshing users:', error);
+        error.value = error.message || 'Failed to refresh users';
+      } finally {
+        loading.value = false;
       }
-    }
+    };
+
+    const downloadCSV = () => {
+      // Show loading indicator and reset message
+      csvLoading.value = true;
+      csvMessage.value = 'Initiating report generation...';
+      console.log('Initiating CSV download...');
+      
+      fetch('/api/export')
+        .then(response => response.json())
+        .then(data => {
+          console.log('Received task data:', data);
+          if (data && data.id) {
+            csvMessage.value = 'Report is being generated, please wait...';
+            
+            let attempts = 0;
+            const maxAttempts = 30; // Maximum polling attempts
+            
+            // Poll for result readiness
+            const checkResult = () => {
+              attempts++;
+              console.log(`Checking if result is ready: ${data.id} (attempt ${attempts}/${maxAttempts})`);
+              
+              if (attempts > maxAttempts) {
+                csvLoading.value = false;
+                csvMessage.value = 'Report generation timed out. Please try again.';
+                return;
+              }
+              
+              // Use XMLHttpRequest instead of fetch for better download handling
+              const xhr = new XMLHttpRequest();
+              xhr.open('GET', `/api/csv_result/${data.id}`, true);
+              xhr.responseType = 'blob'; // Important: set responseType to blob
+              
+              xhr.onload = function() {
+                if (this.status === 202) {
+                  // Still processing
+                  const reader = new FileReader();
+                  reader.onload = function() {
+                    try {
+                      const responseData = JSON.parse(reader.result);
+                      csvMessage.value = responseData.message || 'Still generating report...';
+                      console.log('Report still generating, trying again in 2 seconds...');
+                      setTimeout(checkResult, 2000);
+                    } catch (e) {
+                      console.error('Error parsing JSON response:', e);
+                      csvMessage.value = 'Error checking report status';
+                      csvLoading.value = false;
+                    }
+                  };
+                  reader.readAsText(xhr.response);
+                  return;
+                }
+                
+                if (this.status !== 200) {
+                  // Error occurred
+                  const reader = new FileReader();
+                  reader.onload = function() {
+                    try {
+                      const responseData = JSON.parse(reader.result);
+                      csvMessage.value = `Error: ${responseData.error || 'Failed to retrieve report'}`;
+                    } catch (e) {
+                      csvMessage.value = `Error: Failed to retrieve report (status: ${xhr.status})`;
+                    }
+                    csvLoading.value = false;
+                  };
+                  reader.readAsText(xhr.response);
+                  return;
+                }
+                
+                // Success - we have our file
+                csvMessage.value = 'Report ready! Downloading...';
+                console.log('Report ready, downloading...');
+                
+                // Create a download link
+                const contentDisposition = xhr.getResponseHeader('Content-Disposition');
+                let filename = 'service_report.csv';
+                
+                if (contentDisposition) {
+                  const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                  if (filenameMatch && filenameMatch[1]) {
+                    filename = filenameMatch[1].replace(/['"]/g, '');
+                  }
+                }
+                
+                const url = window.URL.createObjectURL(xhr.response);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                
+                // Clean up
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                setTimeout(() => {
+                  csvLoading.value = false;
+                  csvMessage.value = 'Report downloaded successfully!';
+                  // Clear message after 5 seconds
+                  setTimeout(() => {
+                    csvMessage.value = '';
+                  }, 5000);
+                }, 1000);
+              };
+              
+              xhr.onerror = function() {
+                console.error('XHR error occurred');
+                csvMessage.value = 'Error downloading file. Please try again.';
+                csvLoading.value = false;
+              };
+              
+              xhr.send();
+            };
+            
+            // Start polling
+            checkResult();
+          } else {
+            throw new Error('Invalid task ID received');
+          }
+        })
+        .catch(error => {
+          console.error('Error initiating download:', error);
+          csvMessage.value = `Error: ${error.message}`;
+          csvLoading.value = false;
+        });
+    };
 
     const updateStats = () => {
       stats.value = {
@@ -672,21 +799,6 @@ export default {
       }
     }
 
-    const refreshUsers = async () => {
-      loading.value = true;
-      error.value = null;
-      try {
-        const userData = await adminAPI.getUsers();
-        users.value = userData;
-        updateStats();
-      } catch (error) {
-        console.error('Error refreshing users:', error);
-        error.value = error.message || 'Failed to refresh users';
-      } finally {
-        loading.value = false;
-      }
-    };
-
     // Lifecycle hooks
     onMounted(() => {
       console.log('AdminDashboard mounted - loading data...');
@@ -715,6 +827,8 @@ export default {
       loading,
       error,
       isDeleting,
+      csvLoading,
+      csvMessage,
       showNewServiceModal,
       editService,
       saveService,
