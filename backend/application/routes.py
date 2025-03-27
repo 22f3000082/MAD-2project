@@ -624,10 +624,11 @@ def export_csv():
         print("Starting CSV export...")
         # Check if the static directory exists and is writable
         import os
-        PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+        PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))  # Go two levels up
         static_dir = os.path.join(PROJECT_ROOT, 'static')
-        os.makedirs(static_dir, exist_ok=True)
-        # static_dir = os.path.join(os.path.dirname(__file__), 'static')
+        # # static_dir = os.path.join(os.path.dirname(__file__), 'static')
+        # os.makedirs(static_dir, exist_ok=True)
+        # # static_dir = os.path.join(os.path.dirname(__file__), 'static')
         if not os.path.exists(static_dir):
             os.makedirs(static_dir)
             print(f"Created static directory: {static_dir}")
@@ -664,7 +665,7 @@ def csv_result(task_id):
             return jsonify({'ready': True, 'successful': False, 'error': filename[6:]}), 500
 
         # Validate file existence
-        PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+        PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         static_dir = os.path.join(PROJECT_ROOT, 'static')
         # static_dir = os.path.join(os.path.dirname(__file__), 'static')
         file_path = os.path.join(static_dir, filename)
@@ -674,7 +675,7 @@ def csv_result(task_id):
         
         print(f"Looking for file at: {file_path}")
 
-        return send_from_directory('/mnt/c/Users/91829/OneDrive/Documents/VS CODE/Household_service_22f3000082/static', filename, as_attachment=True, download_name=filename)
+        return send_from_directory('/mnt/c/Users/91829/OneDrive/Documents/VS CODE/Household_service_22f3000082/backend/static', filename, as_attachment=True, download_name=filename)
 
     except Exception as e:
         return jsonify({'error': f'Error retrieving report: {str(e)}'}), 500

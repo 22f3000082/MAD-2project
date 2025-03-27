@@ -41,13 +41,15 @@ def monthly_report():
                     services_requested = ServiceRequest.query.filter_by(customer_id=customer.id).count()
                     services_closed = ServiceRequest.query.filter_by(customer_id=customer.id, status='pending').count()
                     
+                    TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), '..', 'backend', 'application', 'templates')
                     # Render HTML report
                     report_html = render_template(
                         'mail_details.html',
                         customer_name=customer.username,
                         services_requested=services_requested,
                         services_closed=services_closed,
-                        report_date=report_date
+                        report_date=report_date,
+                        template_folder=TEMPLATE_DIR
                     )
                     
                     # Send email
@@ -101,8 +103,6 @@ def setup_periodic_tasks(sender, **kwargs):
 #User Triggered Tasks
 
 @celery.task(ignore_results=False, name='download_csv_report')
-# @shared_task(ignore_results=False, name='download_csv_report')
-# @shared_task(ignore_results=False, name='download_csv_report')
 def download_csv_report():
 
 
@@ -125,16 +125,17 @@ def download_csv_report():
             filename = f"service_report_{timestamp}.csv"
 
             
-            # Get absolute path to static directory
-            # We need to get the absolute path to the "static" directory
-            # so that we can save the file there.
             import os
-            PROJECT_ROOT = os.path.abspath(os.path.join(current_app.root_path, "../../"))  # Go two levels up
+            # PROJECT_ROOT = os.path.abspath(os.path.join(current_app.root_path, ".."))  # Go two levels up
+            # PROJECT_ROOT = r"C:/Users/91829/OneDrive/Documents/VS CODE/Household_service_22f3000082"
+            PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
             static_dir = os.path.join(PROJECT_ROOT, 'static')
             # static_dir = os.path.join(current_app.root_path, 'static')
             os.makedirs(static_dir, exist_ok=True)  # Ensure directory exists
-
-            
+            # Debugging: Print paths
+            print("Project Root:", PROJECT_ROOT)
+            print("Static Dir:", static_dir)
+                        
             file_path = os.path.join(static_dir, filename)
 
             
