@@ -1,6 +1,7 @@
 from email import encoders
 from jinja2 import Template
-from flask_mail import Mail
+from flask_mail import Mail, Message
+from flask import current_app
 
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -9,46 +10,41 @@ from email.mime.base import MIMEBase
 from email import encoders
 
 # SMTP Configuration (Update these values)
-SMTP_SERVER_HOST = "smtp.yourmailserver.com"
-SMTP_SERVER_PORT = 587
-SENDER_ADDRESS = "noreply@yourapp.com"
-SENDER_PASSWORD = "your-email-password"
+SMTP_SERVER_HOST = 'localhost'
+SMTP_SERVER_PORT = 1025
+SENDER_ADDRESS = "houseservices@gmail.com"
+SENDER_PASSWORD = None
 
-def send_email(to_address, subject, message, content="html", attachment_file=None):
+def send_email(to_address, subject, message, content="text"):
     """
-    Sends an email with optional HTML content and an attachment.
+    Sends an email using Flask-Mail
+    
+    Args:
+        to_address: Recipient email address
+        subject: Email subject
+        message: Message content
+        content: Type of content ('text' or 'html')
     """
-    msg = MIMEMultipart()
-    msg["From"] = SENDER_ADDRESS
-    msg["To"] = to_address
-    msg["Subject"] = subject
-
-    # Attach the email body
-    if content == "html":
-        msg.attach(MIMEText(message, "html"))
-    else:
-        msg.attach(MIMEText(message, "plain"))
-
-    # Attach a file if provided
-    if attachment_file:
-        with open(attachment_file, "rb") as attachment:
-            part = MIMEBase("application", "octet-stream")
-            part.set_payload(attachment.read())
-
-        encoders.encode_base64(part)
-        part.add_header("Content-Disposition", f"attachment; filename={attachment_file.split('/')[-1]}")
-        msg.attach(part)
-
-    # Send email using SMTP
     try:
-        server = smtplib.SMTP(SMTP_SERVER_HOST, SMTP_SERVER_PORT)
-        server.starttls()
-        server.login(SENDER_ADDRESS, SENDER_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        print("✅ Email sent successfully!")
+        # Import mail extension inside the function to avoid circular imports
+        from run import mail
+        
+        msg = Message(
+            subject=subject,
+            recipients=[to_address]
+        )
+        
+        # Set the appropriate message content
+        if content == "html":
+            msg.html = message
+        else:
+            msg.body = message
+            
+        print(f"Sending email to {to_address}: {subject}")
+        mail.send(msg)
+        print(f"Email sent successfully to {to_address}")
         return True
     except Exception as e:
-        print(f"❌ Error sending email: {e}")
+        print(f"Failed to send email: {str(e)}")
         return False
 

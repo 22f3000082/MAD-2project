@@ -14,6 +14,9 @@ from flask_cors import CORS
 import os
 import logging
 from backend.application.celery_init import celery_init_app
+from celery.schedules import crontab
+
+
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -77,6 +80,7 @@ def create_app():
     
     # Initialize Celery
     celery_app = celery_init_app(app)
+    # Celery.autodiscover_tasks(self)
     
     # Serve Vue frontend
     @app.route('/', defaults={'path': ''})
@@ -107,6 +111,8 @@ def create_app():
             response.headers.add('Access-Control-Allow-Credentials', 'true')
             response.headers.add('Access-Control-Expose-Headers', 'Authentication-Token')
         return response
+    
+    # @celery.on_after_finalize.connect
 
     # Handle OPTIONS requests
     @app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
@@ -121,7 +127,9 @@ def create_app():
             response.headers.add('Access-Control-Allow-Credentials', 'true')
             response.headers.add('Access-Control-Expose-Headers', '')
         return response
-
+    
+    # @celery.on_after_finalize.connect
+    
     # Add error handlers
     @app.errorhandler(404)
     def not_found(error):
@@ -152,6 +160,8 @@ def create_app():
 
     return app
 
+
+    
 if __name__ == '__main__':
     app = create_app()
     app.run(host='0.0.0.0', debug=True, port=8080)

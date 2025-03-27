@@ -8,6 +8,7 @@ from jinja2 import Template
 from flask import render_template
 from celery.schedules import crontab
 from datetime import datetime
+from flask import render_template
 from .mail import send_email  # Import the email utility
 
 
@@ -21,69 +22,99 @@ celery.conf.worker_hijack_root_logger = False
 celery.conf.worker_redirect_stdouts = False
 
 
-mail = Mail()
+# mail = Mail()
 #scheduled tasks
 @celery.task
-# @shared_task(ignore_results = False, name = 'monthly_report')
 def monthly_report():
     """Scheduled task to send monthly reports to customers."""
-    with app.app_context():  # Ensure Flask context is available
-        customers = User.query.filter_by(role='customer').all()
-        report_date = datetime.utcnow().strftime('%B %Y')
+    try:
+        from flask import current_app
+        with current_app.app_context():
+            customers = User.query.filter_by(role='customer').all()
+            report_date = datetime.now().strftime('%B %Y')
+            
+            print(f"Generating monthly reports for {len(customers)} customers")
+            
+            for customer in customers:
+                try:
+                    # Get user activity data
+                    services_requested = ServiceRequest.query.filter_by(customer_id=customer.id).count()
+                    services_closed = ServiceRequest.query.filter_by(customer_id=customer.id, status='pending').count()
+                    
+                    # Render HTML report
+                    report_html = render_template(
+                        'mail_details.html',
+                        customer_name=customer.username,
+                        services_requested=services_requested,
+                        services_closed=services_closed,
+                        report_date=report_date
+                    )
+                    
+                    # Send email
+                    from .mail import send_email
+                    success = send_email(
+                        to_address=customer.email,
+                        subject=f"Your Monthly Service Report - {report_date}",
+                        message=report_html,
+                        content="html"
+                    )
+                    
+                    if success:
+                        print(f"Email sent to {customer.email}")
+                    else:
+                        print(f"Failed to send email to {customer.email}")
+                        
+                except Exception as customer_error:
+                    print(f"Error processing customer {customer.id}: {str(customer_error)}")
+                    continue
+                    
+            return "Monthly reports sent."
+    except Exception as e:
+        print(f"Error in monthly_report task: {str(e)}")
+        return f"Error: {str(e)}"
 
-        for customer in customers:
-            services_requested = ServiceRequest.query.filter_by(user_id=customer.id).count()
-            services_closed = ServiceRequest.query.filter_by(user_id=customer.id, status='pending').count()
+@celery.on_after_finalize.connect
+def setup_periodic_tasks(sender, **kwargs):
+    sender.add_periodic_task(
+        crontab(minute='*/2'),  # Runs every 2 minutes
+        monthly_report.s(),
+    )
+# # Schedule the task to run on the first of every month
+# from celery.schedules import crontab
 
-            # Render HTML report
-            report_html = render_template(
-                'monthly_report.html',
-                customer_name=customer.username,
-                services_requested=services_requested,
-                services_closed=services_closed,
-                report_date=report_date
-            )
-
-            # Send email using the custom function
-            send_email(
-                to_address=customer.email,
-                subject=f"Your Monthly Service Report - {report_date}",
-                message=report_html,
-                content="html"
-            )
-
-    return "Monthly reports sent."
-
-# Schedule the task to run on the first of every month
-from celery.schedules import crontab
-
-celery.conf.beat_schedule = {
-    'send-monthly-report': {
-        'task': 'tasks.monthly_report',
-        'schedule': crontab(minute=0, hour=0, day_of_month=1),
-    },
-}
+# celery.conf.beat_schedule = {
+#     'send-monthly-report': {
+#         'task': 'tasks.monthly_report',
+#         'schedule': crontab(minute=0, hour=0, day_of_month=1),
+#     },
+# }
     
-# Schedule the task to run on the first of every month
-celery.conf.beat_schedule = {
-    'send-monthly-report': {
-        'task': 'tasks.send_monthly_report',
-        'schedule': crontab(minute=0, hour=0, day_of_month=1),
-    },
-}
+# # Schedule the task to run on the first of every month
+# celery.conf.beat_schedule = {
+#     'send-monthly-report': {
+#         'task': 'tasks.send_monthly_report',
+#         'schedule': crontab(minute=0, hour=0, day_of_month=1),
+#     },
+# }
 
 
 #User Triggered Tasks
+
 @celery.task(ignore_results=False, name='download_csv_report')
 # @shared_task(ignore_results=False, name='download_csv_report')
 # @shared_task(ignore_results=False, name='download_csv_report')
 def download_csv_report():
+
+
     try:
         print("Starting CSV report generation...")
 
         # Ensure app context is available for DB queries
+        # We need to tell Celery to use the Flask app context
+        # so that we can access the database, etc.
         from flask import current_app
         with current_app.app_context():
+            # Get a list of all users and service requests
             users = User.query.all()
             service_rqst = ServiceRequest.query.all()
 
@@ -92,18 +123,31 @@ def download_csv_report():
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             # filename = os.path.join("static", filename)
             filename = f"service_report_{timestamp}.csv"
+
             
             # Get absolute path to static directory
+            # We need to get the absolute path to the "static" directory
+            # so that we can save the file there.
             import os
-            static_dir = os.path.join(current_app.root_path, 'static')
+            PROJECT_ROOT = os.path.abspath(os.path.join(current_app.root_path, "../../"))  # Go two levels up
+            static_dir = os.path.join(PROJECT_ROOT, 'static')
+            # static_dir = os.path.join(current_app.root_path, 'static')
             os.makedirs(static_dir, exist_ok=True)  # Ensure directory exists
+
             
             file_path = os.path.join(static_dir, filename)
+
             
             print(f"Saving CSV to: {file_path}")
+
+            # Open the file in write mode and create a CSV writer
             with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
                 writer = csv.writer(csvfile)
+
+                # Write the header row
                 writer.writerow(["Sr. No.", "Service ID", "Customer ID", "Professional ID", "Date", "Status"])
+
+                # Write each row of the report
                 for i, sr in enumerate(service_rqst, 1):
                     writer.writerow([i, sr.service_id, sr.customer_id, sr.professional_id, sr.created_at, sr.status])
             
@@ -112,6 +156,7 @@ def download_csv_report():
     except Exception as e:
         print(f"CSV Generation Error: {str(e)}")
         return f"ERROR:{str(e)}"
+
 
 
 #Scheduled Tasks

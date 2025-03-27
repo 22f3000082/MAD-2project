@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from celery.result import AsyncResult
 import os
-from .task import download_csv_report
+from .task import download_csv_report, monthly_report
 # from app import create_app as app
 # from app import create_app
 
@@ -624,7 +624,10 @@ def export_csv():
         print("Starting CSV export...")
         # Check if the static directory exists and is writable
         import os
-        static_dir = os.path.join(os.path.dirname(__file__), 'static')
+        PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+        static_dir = os.path.join(PROJECT_ROOT, 'static')
+        os.makedirs(static_dir, exist_ok=True)
+        # static_dir = os.path.join(os.path.dirname(__file__), 'static')
         if not os.path.exists(static_dir):
             os.makedirs(static_dir)
             print(f"Created static directory: {static_dir}")
@@ -661,7 +664,9 @@ def csv_result(task_id):
             return jsonify({'ready': True, 'successful': False, 'error': filename[6:]}), 500
 
         # Validate file existence
-        static_dir = os.path.join(os.path.dirname(__file__), 'static')
+        PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+        static_dir = os.path.join(PROJECT_ROOT, 'static')
+        # static_dir = os.path.join(os.path.dirname(__file__), 'static')
         file_path = os.path.join(static_dir, filename)
         print(f"Flask looking for file at: {file_path}")
         if not os.path.exists(file_path):
@@ -673,12 +678,19 @@ def csv_result(task_id):
 
     except Exception as e:
         return jsonify({'error': f'Error retrieving report: {str(e)}'}), 500
-    # 
 # app = Flask(__name__, static_folder='static')
 
 @api.route('/static/<path:filename>')
 def serve_static(filename):
     return send_from_directory('static', filename)
+
+@api.route('/mail')
+def send_mail():
+    res= monthly_report.delay()
+    return{
+    #    "task_id" : task_id,
+       "status" :"Task started"
+    }
 
 
 @api.route('/health', methods=['GET'])
