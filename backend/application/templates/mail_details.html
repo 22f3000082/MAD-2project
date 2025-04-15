@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Monthly Service Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { padding: 20px; border: 1px solid #ddd; }
+        .header { background: #abe91a; color: white; padding: 10px; text-align: center; }
+        .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .table, .table th, .table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Monthly Service Report - {{ report_date }}</h2>
+        </div>
+        <p>Hello {{ customer_name }},</p>
+        <p>Here is your service report for the month:</p>
+        <table class="table">
+            <tr>
+                <th>Service Requested</th>
+                <th>Services Closed</th>
+            </tr>
+            <tr>
+                <td>{{ services_requested }}</td>
+                <td>{{ services_closed }}</td>
+            </tr>
+        </table>
+        <p>Thank you for using our services!</p>
+        <p>Best regards, <br> Your Service Team</p>
+    </div>
+</body>
+</html>
