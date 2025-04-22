@@ -11,25 +11,10 @@ This is a Progressive Web Application (PWA) for managing household services, con
 
 ### Key Features
 - User authentication and role-based access control
-- Service listings with search and filter capabilities
 - Request and booking management system
 - Reviews and ratings for professionals
-- Analytics dashboard for administrators
 - Progressive Web App capabilities for mobile use
 - Responsive design for all device sizes
-
-### Analytics Dashboard
-The Admin Dashboard includes an Analytics tab with the following features:
-- Key metrics cards showing:
-  - Total revenue with growth indicators
-  - New user registrations
-  - Service request totals
-  - Average platform ratings
-- Visual data representation using Chart.js:
-  - Line chart for revenue trends
-  - Pie chart for service distribution
-  - Bar chart for new user registrations
-- CSV export functionality for detailed reporting
 
 ## Technical Stack
 
